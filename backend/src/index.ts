@@ -20,6 +20,7 @@ const PORT = process.env.PORT || 3001;
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
+  'https://2hjs-tracker.pages.dev',
   'https://jobsearch.kongaiwen.dev',
   'https://jobsearch-api.kongaiwen.dev'
 ].filter(Boolean) as string[];
