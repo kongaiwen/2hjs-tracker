@@ -1,4 +1,4 @@
-name = "2hjs-tracker-api"
+name = "2hjs-tracker"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -11,9 +11,12 @@ account_id = "REDACTED_ACCOUNT_ID"
 # - JWT_SECRET: For admin session tokens
 # - ADMIN_EMAIL: Your email address for admin access
 
+# Worker will be available at: https://2hjs-tracker.eviemariekolb.workers.dev
+
 [env.production]
-routes = [
-  { pattern = "api.jobsearch.kongaiwen.dev/*", zone_name = "kongaiwen.dev" }
+# Optional: Custom domain for API (commented out - using workers.dev URL)
+# routes = [
+#   { pattern = "api.jobsearch.kongaiwen.dev/*", zone_name = "kongaiwen.dev" }
 ]
 
 [[env.production.d1_databases]]
