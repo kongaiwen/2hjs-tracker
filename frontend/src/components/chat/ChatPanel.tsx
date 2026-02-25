@@ -11,7 +11,7 @@ interface ChatPanelProps {
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'USER' | 'ASSISTANT' | 'SYSTEM';
   content: string;
   createdAt: string;
 }
@@ -23,7 +23,7 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
 
   const { data: messages = [], isLoading: isLoadingHistory } = useQuery({
     queryKey: ['chat-messages'],
-    queryFn: claudeApi.getHistory,
+    queryFn: () => claudeApi.getHistory(50),
     enabled: isOpen,
   });
 
@@ -105,40 +105,43 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
             </div>
           </div>
         ) : (
-          messages.map((msg: Message) => (
-            <div
-              key={msg.id}
-              className={cn(
-                'flex gap-3',
-                msg.role === 'user' ? 'flex-row-reverse' : ''
-              )}
-            >
+          messages.map((msg: Message) => {
+            const isUser = msg.role === 'user' || msg.role === 'USER';
+            return (
               <div
+                key={msg.id}
                 className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
-                  msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
+                  'flex gap-3',
+                  isUser ? 'flex-row-reverse' : ''
                 )}
               >
-                {msg.role === 'user' ? (
-                  <User className="w-4 h-4" />
-                ) : (
-                  <Bot className="w-4 h-4" />
-                )}
+                <div
+                  className={cn(
+                    'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
+                    isUser
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
+                  )}
+                >
+                  {isUser ? (
+                    <User className="w-4 h-4" />
+                  ) : (
+                    <Bot className="w-4 h-4" />
+                  )}
+                </div>
+                <div
+                  className={cn(
+                    'flex-1 rounded-lg p-3 text-sm',
+                    isUser
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
+                  )}
+                >
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                </div>
               </div>
-              <div
-                className={cn(
-                  'flex-1 rounded-lg p-3 text-sm',
-                  msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
-                )}
-              >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
         {chatMutation.isPending && (
           <div className="flex gap-3">

@@ -4,7 +4,6 @@ import {
   Building2,
   Users,
   Send,
-  TrendingUp,
   AlertCircle,
   Clock,
   CheckCircle2,
@@ -14,9 +13,8 @@ import {
   Video,
 } from 'lucide-react';
 import { outreachApi, employersApi, informationalsApi } from '@/lib/api';
-import { formatDate, getSegmentLabel, getSegmentColor } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import type { MeetingMethod } from '@/types';
 
 export default function DashboardPage() {
   const { data: reminders, isLoading: remindersLoading } = useQuery({

@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { Mail, Calendar, Bot, Check, X, ExternalLink } from 'lucide-react';
 import { googleApi } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import type { GoogleCalendar } from '@/types';
 
 export default function SettingsPage() {

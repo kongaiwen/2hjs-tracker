@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { KeySetupPage } from '@/components/auth/KeySetupPage';
@@ -63,7 +63,9 @@ function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <MainLayout />
+            <MainLayout>
+              <Outlet />
+            </MainLayout>
           </ProtectedRoute>
         }
       >

@@ -14,7 +14,7 @@ export function KeySetupPage() {
   const [generatedKeys, setGeneratedKeys] = useState<{ publicKey: string; privateKey: string } | null>(null);
   const [keyDownloaded, setKeyDownloaded] = useState(false);
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const updateUser = useAuthStore((s) => s.updateUser);
 
   const crypto = new CryptoService();
   const keyManager = new KeyManager();
@@ -59,7 +59,7 @@ export function KeySetupPage() {
 
     try {
       const response: any = await authApi.completeRegistration(token, generatedKeys.publicKey, email);
-      setAuth({ id: response.userId, email }, response.token);
+      updateUser({ id: response.userId, email });
       navigate('/');
     } catch (err: any) {
       alert(err.response?.data?.error || 'Setup failed');

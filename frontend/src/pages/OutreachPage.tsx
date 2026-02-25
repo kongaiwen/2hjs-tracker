@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Send, Clock, CheckCircle2, AlertCircle, MessageSquare, Copy, ChevronRight, ChevronLeft, FileText, Mail, Calendar } from 'lucide-react';
-import { outreachApi, employersApi, contactsApi, templatesApi, googleApi } from '@/lib/api';
+import { Send, AlertCircle, Copy, ChevronRight, ChevronLeft, FileText, Mail, Calendar } from 'lucide-react';
+import { outreachApi, contactsApi, templatesApi, googleApi } from '@/lib/api';
 import { cn, formatDate, getStatusLabel, getSegmentColor, countWords } from '@/lib/utils';
-import type { Outreach, CreateOutreachInput, ResponseType, EmailTemplate, Contact } from '@/types';
+import type { Outreach, ResponseType, Contact } from '@/types';
 
 export default function OutreachPage() {
   const queryClient = useQueryClient();
@@ -188,11 +188,6 @@ function OutreachRow({ outreach, isGoogleAuthenticated }: { outreach: Outreach; 
 
   const markMovedOnMutation = useMutation({
     mutationFn: () => outreachApi.markMovedOn(outreach.id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['outreach'] }),
-  });
-
-  const recordFollowUpMutation = useMutation({
-    mutationFn: (body: string) => outreachApi.recordFollowUp(outreach.id, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['outreach'] }),
   });
 
