@@ -54,7 +54,7 @@ app.use('/api/*', usageMiddleware);
 app.get('/', (c) => {
   return c.json({
     name: '2HJS Tracker API',
-    version: '1.0.2',
+    version: '1.0.3',
     status: 'healthy',
     timestamp: new Date().toISOString(),
   });
