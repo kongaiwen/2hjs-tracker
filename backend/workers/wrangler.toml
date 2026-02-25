@@ -1,0 +1,44 @@
+name = "2hjs-tracker-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables (set via wrangler secret or dashboard)
+# vars = {}
+#
+# Required secrets (set via: wrangler secret put <NAME>):
+# - JWT_SECRET: For admin session tokens
+# - ADMIN_EMAIL: Your email address for admin access
+
+[env.production]
+routes = [
+  { pattern = "api.jobsearch.kongaiwen.dev/*", zone_name = "kongaiwen.dev" }
+]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "2hjs-tracker-db"
+database_id = "YOUR_D1_DATABASE_ID"  # Update after creating D1 database
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "YOUR_KV_NAMESPACE_ID"  # Update after creating KV namespace
+
+[env.development]
+# Local development configuration
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "2hjs-tracker-db"
+database_id = "local"  # Uses local SQLite for development
+
+[[env.development.kv_namespaces]]
+binding = "KV"
+id = "local"  # Uses mock KV for development
+
+# Build configuration
+[build]
+command = "echo 'No build step required for TypeScript with Wrangler'"
+
+# TypeScript configuration
+[ts_build]
+command = "tsc"
