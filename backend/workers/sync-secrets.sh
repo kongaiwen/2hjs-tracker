@@ -35,13 +35,14 @@ get_env_value() {
 # Get values
 JWT_SECRET=$(get_env_value "JWT_SECRET")
 ADMIN_EMAIL=$(get_env_value "ADMIN_EMAIL")
+CLOUDFLARE_API_TOKEN=$(get_env_value "CLOUDFLARE_API_TOKEN")
 
 # Validate
 if [ -z "$JWT_SECRET" ]; then
   echo "⚠️  JWT_SECRET not found in .env file - skipping"
 else
   echo "Setting JWT_SECRET..."
-  echo "$JWT_SECRET" | npx wrangler secret put JWT_SECRET
+  echo "$JWT_SECRET" | wrangler secret put JWT_SECRET
 fi
 
 echo ""
@@ -56,7 +57,7 @@ if [ -z "$ADMIN_EMAIL" ]; then
 fi
 
 echo "Setting ADMIN_EMAIL to: $ADMIN_EMAIL"
-echo "$ADMIN_EMAIL" | npx wrangler secret put ADMIN_EMAIL
+echo "$ADMIN_EMAIL" | wrangler secret put ADMIN_EMAIL
 
 echo ""
 echo -e "${GREEN}✅ Secrets synced successfully!${NC}"
