@@ -8,6 +8,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
 interface User {
   id: string;
   email: string;
@@ -44,7 +46,7 @@ export const useAuthStore = create<AuthState>()(
       checkAuth: async () => {
         set({ isLoading: true });
         try {
-          const res = await fetch('/api/auth/me');
+          const res = await fetch(`${API_BASE}/auth/me`);
 
           if (res.ok) {
             const data = await res.json();
