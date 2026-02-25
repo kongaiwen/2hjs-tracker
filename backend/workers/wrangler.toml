@@ -2,6 +2,7 @@ name = "2hjs-tracker-api"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
+account_id = "REDACTED_ACCOUNT_ID"
 
 # Environment variables (set via wrangler secret or dashboard)
 # vars = {}
@@ -18,11 +19,11 @@ routes = [
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "2hjs-tracker-db"
-database_id = "YOUR_D1_DATABASE_ID"  # Update after creating D1 database
+database_id = "8099011b-afab-46e2-9308-ddea6363dc4c"
 
 [[env.production.kv_namespaces]]
 binding = "KV"
-id = "YOUR_KV_NAMESPACE_ID"  # Update after creating KV namespace
+id = "47d8977bfe5f4591a0dee56fc243b030"
 
 [env.development]
 # Local development configuration
