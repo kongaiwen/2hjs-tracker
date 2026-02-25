@@ -1,0 +1,41 @@
+{
+  "name": "2hjs-tracker-backend",
+  "version": "1.0.0",
+  "description": "2-Hour Job Search Tracker API",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:generate": "prisma generate --schema=../prisma/schema.prisma",
+    "restore:backup": "tsx scripts/restore-backup.ts",
+    "export:unencrypted-data": "tsx scripts/export-unencrypted.ts",
+    "migrate:data": "tsx scripts/migrate-to-d1.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@prisma/client": "^5.22.0",
+    "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
+    "express": "^4.21.1",
+    "express-rate-limit": "^8.2.1",
+    "googleapis": "^144.0.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "nanoid": "^5.1.6",
+    "resend": "^6.9.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.9.0",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

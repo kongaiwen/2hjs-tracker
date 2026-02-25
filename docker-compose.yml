@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-2hjs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-2hjs_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-2hjs_tracker}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-2hjs}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-2hjs}:${POSTGRES_PASSWORD:-2hjs_secret}@postgres:5432/${POSTGRES_DB:-2hjs_tracker}
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3001
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: "https://jobsearch.kongaiwen.dev/api/google/callback"
+      Z_AI_AUTH_TOKEN: ${Z_AI_AUTH_TOKEN:-}
+      FRONTEND_URL: "https://jobsearch.kongaiwen.dev"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRY: ${JWT_EXPIRY:-7d}
+      APP_URL: ${APP_URL:-https://jobsearch.kongaiwen.dev}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - ./prisma:/app/prisma
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    environment:
+      VITE_API_URL: "https://jobsearch-api.kongaiwen.dev"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:

@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+
+# Prisma
+prisma/migrations/**/migration_lock.toml
+
+# Exports and backups (sensitive user data)
+exports/
+backups/
+*.backup.json
+*.backup.sql
+
+# Workers
+backend/workers/.wrangler/
+
+# TODO
+*.dev.*

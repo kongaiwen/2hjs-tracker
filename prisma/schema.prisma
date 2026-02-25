@@ -1,0 +1,355 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTHENTICATION & MULTI-TENANCY (Legacy - For Migration Only)
+// ============================================================================
+
+// User model - minimal info only, no encryption keys stored
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  tenantId      String    @unique
+
+  // Role - admin can manage invites
+  role          UserRole  @default(USER)
+
+  // Public key for verification only (cannot decrypt data)
+  publicKey     String    @db.Text
+  keyFingerprint String?  // SHA-256 hash of public key (for device recognition)
+  keyCreatedAt  DateTime  @default(now())
+
+  // NEW: E2E encrypted data blob (for Cloudflare migration)
+  encryptedData String?   @db.Text  // E2E encrypted JSON blob
+  dataVersion   Int       @default(0)  // For encryption migrations
+
+  // NEW: Usage tracking
+  storageUsed   Int       @default(0)  // Bytes
+  requestCount  Int       @default(0)  // API requests this month
+  lastRequestAt DateTime?
+
+  // NEW: First seen tracking
+  firstSeenAt   DateTime  @default(now())
+
+  // Relationships
+  employers     Employer[]
+  contacts      Contact[]
+  outreach      Outreach[]
+  informationals Informational[]
+  emailTemplates EmailTemplate[]
+  settings      Settings?
+  chatMessages  ChatMessage[]
+
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// ============================================================================
+// EXISTING MODELS - WITH MULTI-TENANCY
+// ============================================================================
+
+model Employer {
+  id          String    @id @default(cuid())
+  name        String
+  website     String?
+  industry    String?
+  location    String?
+  notes       String?
+
+  // LAMP scores
+  advocacy    Boolean   @default(false)  // Y/N
+  motivation  Int       @default(0)      // 0-3
+  posting     Int       @default(1)      // 1-3
+
+  // Computed rank (for sorting)
+  lampRank    Int?
+
+  // Status
+  status      EmployerStatus @default(ACTIVE)
+
+  // Type: false = company/employer, true = networking/affinity group
+  isNetworkOrg Boolean   @default(false)
+
+  // Multi-tenancy (nullable initially for migration)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  contacts    Contact[]
+  outreach    Outreach[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+enum EmployerStatus {
+  ACTIVE
+  ON_HOLD
+  RULED_OUT
+  OFFER_RECEIVED
+}
+
+model Contact {
+  id              String    @id @default(cuid())
+  employer        Employer  @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  employerId      String
+
+  name            String
+  title           String?
+  email           String?
+  linkedInUrl     String?
+  phone           String?
+
+  // Contact prioritization
+  isFunctionallyRelevant  Boolean @default(false)
+  isAlumni                Boolean @default(false)
+  levelAboveTarget        Int     @default(0)  // 0, 1, or 2 levels above
+  isInternallyPromoted    Boolean @default(false)
+  hasUniqueName           Boolean @default(false)
+
+  // Contact method
+  contactMethod   ContactMethod?
+
+  // Segment determination (based on response behavior)
+  segment         ContactSegment @default(UNKNOWN)
+
+  // Priority order within employer
+  priority        Int       @default(1)
+
+  // Multi-tenancy (nullable initially for migration)
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  outreach        Outreach[]
+  informationals  Informational[]
+
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+enum ContactMethod {
+  LINKEDIN_GROUP
+  DIRECT_EMAIL_ALUMNI
+  DIRECT_EMAIL_HUNTER
+  FAN_MAIL
+  LINKEDIN_CONNECT
+  SOCIAL_MEDIA
+  SECOND_DEGREE
+}
+
+enum ContactSegment {
+  UNKNOWN
+  BOOSTER       // Responded within 3B
+  OBLIGATE      // Responded after 3B or unhelpful
+  CURMUDGEON    // Never responded after 7B follow-up
+}
+
+model Outreach {
+  id              String    @id @default(cuid())
+  employer        Employer  @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  employerId      String
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contactId       String
+
+  // Email details
+  subject         String
+  body            String
+  wordCount       Int
+
+  // Tracking
+  sentAt          DateTime
+  threeB_Date     DateTime  // 3 business days later
+  sevenB_Date     DateTime  // 7 business days later
+
+  // Response tracking
+  responseAt      DateTime?
+  responseType    ResponseType?
+
+  // Follow-up tracking
+  followUpSentAt  DateTime?
+  followUpBody    String?
+
+  // Status
+  status          OutreachStatus @default(SENT)
+
+  // Google integration
+  gmailDraftId    String?
+  gmailMessageId  String?
+  calendarEventId String?   // For 3B/7B reminders
+
+  // Multi-tenancy (nullable initially for migration)
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+enum ResponseType {
+  POSITIVE        // Agreed to informational
+  NEGATIVE        // Declined
+  DELAYED_POSITIVE
+  REFERRAL_ONLY   // Offered to forward resume only
+  OUT_OF_OFFICE
+}
+
+enum OutreachStatus {
+  DRAFT
+  SENT
+  AWAITING_3B     // Waiting for 3B checkpoint
+  MOVED_ON        // 3B passed, trying new contact
+  AWAITING_7B     // Waiting for 7B follow-up
+  FOLLOWED_UP     // 7B follow-up sent
+  RESPONDED       // Got a response
+  SCHEDULED       // Informational scheduled
+  COMPLETED       // Process complete for this contact
+  NO_RESPONSE     // No response after follow-up
+}
+
+model Informational {
+  id              String    @id @default(cuid())
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contactId       String
+
+  scheduledAt     DateTime
+  duration        Int       @default(30)  // minutes
+  method          MeetingMethod @default(PHONE)
+
+  // Preparation
+  researchNotes   String?
+  bigFourAnswers  Json?     // { tellMeAboutYourself, whyOrg, whyRole, whyIndustry }
+
+  // TIARA questions prepared
+  tiaraQuestions  Json?
+
+  // Outcome
+  completedAt     DateTime?
+  outcome         InformationalOutcome?
+  referralName    String?
+  referralContact String?
+  nextSteps       String?
+
+  // Google integration
+  calendarEventId String?
+
+  // Multi-tenancy (nullable initially for migration)
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+enum MeetingMethod {
+  PHONE
+  VIDEO
+  IN_PERSON
+}
+
+enum InformationalOutcome {
+  REFERRAL_OFFERED
+  NO_REFERRAL
+  FOLLOW_UP_SCHEDULED
+  DEAD_END
+}
+
+model EmailTemplate {
+  id          String    @id @default(cuid())
+  name        String
+  type        TemplateType
+  subject     String
+  body        String
+  variables   String[]  // e.g., ["contactName", "employerName", "connection"]
+  wordCount   Int
+  isDefault   Boolean   @default(false)
+
+  // Multi-tenancy (nullable initially for migration)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+enum TemplateType {
+  SIX_POINT_INITIAL
+  SIX_POINT_NO_CONNECTION
+  SIX_POINT_WITH_POSTING
+  FOLLOW_UP_7B
+  THANK_YOU
+  REFERRAL_REQUEST
+}
+
+model Settings {
+  id                    String    @id @default(cuid())
+
+  // Multi-tenancy (nullable initially for migration)
+  userId                String?   @unique
+  user                  User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Google OAuth tokens
+  googleAccessToken     String?
+  googleRefreshToken    String?
+  googleTokenExpiry     DateTime?
+
+  // User preferences
+  defaultTimezone       String    @default("America/New_York")
+  workdayStart          String    @default("09:00")
+  workdayEnd            String    @default("17:00")
+  preferredCalendarId   String?   // Google Calendar ID for 2HJS events (null = primary)
+
+  // Claude API
+  claudeApiKey          String?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id          String    @id @default(cuid())
+  role        ChatRole
+  content     String
+  metadata    Json?     // For tool calls, context, etc.
+
+  // Multi-tenancy (nullable initially for migration)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
