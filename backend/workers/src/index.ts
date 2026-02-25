@@ -43,7 +43,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Global middleware
 app.use('*', cors({
-  origin: ['https://jobsearch-tracker.kongaiwen.dev', 'http://localhost:5173'],
+  origin: ['https://2hjs-tracker.pages.dev', 'https://jobsearch-tracker.kongaiwen.dev', 'http://localhost:5173'],
   credentials: true,
 }));
 app.use('*', logger());
