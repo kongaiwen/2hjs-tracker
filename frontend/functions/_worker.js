@@ -159,6 +159,120 @@ export default {
         });
       }
 
+      // DEBUG: Import PostgreSQL backup data for current user
+      if (url.pathname === '/api/debug/import-backup' && request.method === 'POST') {
+        const body = await request.json();
+        const { employers, contacts, outreach, informationals, templates } = body;
+
+        let imported = { employers: 0, contacts: 0, outreach: 0, informationals: 0, templates: 0 };
+
+        // Import Employers
+        if (employers && Array.isArray(employers)) {
+          for (const emp of employers) {
+            const newId = crypto.randomUUID();
+            await env.DB.prepare(`
+              INSERT INTO Employer (id, userId, name, website, industry, location, notes,
+                                    advocacy, motivation, posting, status, isNetworkOrg, createdAt, updatedAt)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).bind(
+              newId, userId, emp.name, emp.website || null, emp.industry || null,
+              emp.location || null, emp.notes || null,
+              emp.advocacy ? 1 : 0, emp.motivation ?? 0, emp.posting ?? 1,
+              emp.status || 'ACTIVE', emp.isNetworkOrg ? 1 : 0
+            ).run();
+
+            // Store old ID -> new ID mapping for contacts
+            emp._newId = newId;
+            imported.employers++;
+          }
+        }
+
+        // Import Contacts
+        if (contacts && Array.isArray(contacts)) {
+          for (const contact of contacts) {
+            const newId = crypto.randomUUID();
+            // Find the new employer ID
+            const employer = employers?.find(e => e.id === contact.employerId);
+            const newEmployerId = employer?._newId || null;
+
+            await env.DB.prepare(`
+              INSERT INTO Contact (id, employerId, userId, name, title, email, linkedInUrl, phone,
+                                    isFunctionallyRelevant, isAlumni, levelAboveTarget,
+                                    isInternallyPromoted, hasUniqueName, contactMethod,
+                                    segment, priority, notes, createdAt, updatedAt)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).bind(
+              newId, newEmployerId, userId, contact.name, contact.title || null, contact.email || null,
+              contact.linkedInUrl || null, contact.phone || null, contact.isFunctionallyRelevant ? 1 : 0,
+              contact.isAlumni ? 1 : 0, contact.levelAboveTarget || 0, contact.isInternallyPromoted ? 1 : 0,
+              contact.hasUniqueName ? 1 : 0, contact.contactMethod || null, contact.segment || 'UNKNOWN',
+              contact.priority || 1, contact.notes || null
+            ).run();
+
+            contact._newId = newId;
+            imported.contacts++;
+          }
+        }
+
+        // Import Outreach
+        if (outreach && Array.isArray(outreach)) {
+          for (const out of outreach) {
+            const newId = crypto.randomUUID();
+            const employer = employers?.find(e => e.id === out.employerId);
+            const contact = contacts?.find(c => c.id === out.contactId);
+            const newEmployerId = employer?._newId || null;
+            const newContactId = contact?._newId || null;
+
+            await env.DB.prepare(`
+              INSERT INTO Outreach (id, employerId, contactId, userId, subject, body, wordCount,
+                                    sentAt, threeB_Date, sevenB_Date, status, createdAt, updatedAt)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).bind(
+              newId, newEmployerId, newContactId, userId, out.subject, out.body, out.wordCount,
+              out.sentAt, out.threeB_Date, out.sevenB_Date, out.status || 'SENT'
+            ).run();
+
+            imported.outreach++;
+          }
+        }
+
+        // Import Informationals
+        if (informationals && Array.isArray(informationals)) {
+          for (const info of informationals) {
+            const newId = crypto.randomUUID();
+            const contact = contacts?.find(c => c.id === info.contactId);
+            const newContactId = contact?._newId || null;
+
+            await env.DB.prepare(`
+              INSERT INTO Informational (id, contactId, userId, scheduledAt, duration, method, createdAt, updatedAt)
+              VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).bind(newId, newContactId, userId, info.scheduledAt, info.duration || 30, info.method || 'PHONE').run();
+
+            imported.informationals++;
+          }
+        }
+
+        // Import Email Templates
+        if (templates && Array.isArray(templates)) {
+          for (const tpl of templates) {
+            const newId = crypto.randomUUID();
+            await env.DB.prepare(`
+              INSERT INTO EmailTemplate (id, userId, name, type, subject, body, variables, wordCount, isDefault, createdAt, updatedAt)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).bind(
+              newId, userId, tpl.name, tpl.type, tpl.subject, tpl.body,
+              JSON.stringify(tpl.variables || []), tpl.wordCount, tpl.isDefault ? 1 : 0
+            ).run();
+
+            imported.templates++;
+          }
+        }
+
+        return new Response(JSON.stringify({ success: true, imported }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       // ==================== ADMIN ROUTES ====================
       // All admin routes require ADMIN role
       if (url.pathname.startsWith('/api/admin/')) {
