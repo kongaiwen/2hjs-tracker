@@ -159,6 +159,48 @@ export default {
         });
       }
 
+      // ==================== ADMIN ROUTES ====================
+      // All admin routes require ADMIN role
+      if (url.pathname.startsWith('/api/admin/')) {
+        if (user.role !== 'ADMIN') {
+          return new Response(JSON.stringify({ error: 'Admin access required' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
+      if (url.pathname === '/api/admin/stats' && request.method === 'GET') {
+        const [userCount, activeUsers, totalStorage, totalRequests] = await Promise.all([
+          env.DB.prepare('SELECT COUNT(*) as count FROM User').first(),
+          env.DB.prepare(`SELECT COUNT(*) as count FROM User WHERE lastLoginAt > datetime('now', '-30 days')`).first(),
+          env.DB.prepare('SELECT SUM(storageUsed) as total FROM User').first(),
+          env.DB.prepare('SELECT SUM(requestCount) as total FROM User').first(),
+        ]);
+
+        return new Response(JSON.stringify({
+          stats: {
+            totalUsers: userCount?.count || 0,
+            activeUsers30Days: activeUsers?.count || 0,
+            totalStorageUsed: totalStorage?.total || 0,
+            totalRequestsMonth: totalRequests?.total || 0,
+          },
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (url.pathname === '/api/admin/users' && request.method === 'GET') {
+        const users = await env.DB.prepare(`
+          SELECT id, email, role, storageUsed, requestCount, lastRequestAt,
+                 firstSeenAt, lastLoginAt, dataVersion, createdAt
+          FROM User
+          ORDER BY createdAt DESC
+        `).all();
+
+        return new Response(JSON.stringify({ users: users.results || [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       // ==================== EMPLOYERS ====================
       if (url.pathname === '/api/employers' && request.method === 'GET') {
         const employers = await env.DB.prepare(
