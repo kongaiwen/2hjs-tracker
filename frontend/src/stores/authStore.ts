@@ -59,9 +59,12 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
             });
 
-            // Redirect to key setup if no keys
-            if (!hasKeys && !window.location.pathname.includes('/setup-keys')) {
-              window.location.href = '/setup-keys';
+            // Only redirect to key setup if user explicitly has no keys
+            // If publicKey is null/undefined, redirect
+            if (data.publicKey === null || data.publicKey === undefined) {
+              if (!window.location.pathname.includes('/setup-keys')) {
+                window.location.href = '/setup-keys';
+              }
             }
           } else {
             // Not authenticated - redirect to Cloudflare Access login
