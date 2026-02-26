@@ -1,6 +1,6 @@
 /**
  * Cloudflare Pages _worker.js
- * Handles API routes and passes everything else to static assets
+ * Uses Cloudflare Access JWT from cookie for authentication
  */
 
 export default {
@@ -9,19 +9,42 @@ export default {
 
     // Handle API routes
     if (url.pathname.startsWith('/api/')) {
-      // Get email from Cloudflare Access header
-      let email = request.headers.get('CF-Access-User-Email');
+      // Try to get email from CF_Access_JwtAssertion cookie first
+      const jwtCookie = request.headers.get('Cookie')?.match(/CF_Authorization=([^;]+)/);
+
+      let email = null;
+
+      if (jwtCookie) {
+        try {
+          // Decode the JWT (it's base64 encoded)
+          const jwt = jwtCookie[1];
+          const parts = jwt.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1]));
+            email = payload.email;
+          }
+        } catch (e) {
+          console.error('Failed to parse JWT:', e);
+        }
+      }
+
+      // Fallback to checking header
+      if (!email) {
+        email = request.headers.get('CF-Access-User-Email');
+      }
 
       if (!email) {
-        // Dev mode bypass for local testing
-        if (env.DEV_MODE === 'true') {
-          email = env.DEV_EMAIL || 'dev@example.com';
-        } else {
-          return new Response(JSON.stringify({ error: 'Authentication required', message: 'CF-Access-User-Email header missing' }), {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
+        return new Response(JSON.stringify({
+          error: 'Authentication required',
+          message: 'Could not determine user identity'
+        }), {
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': 'https://jobsearch-tracker.kongaiwen.dev',
+            'Access-Control-Allow-Credentials': 'true',
+          },
+        });
       }
 
       // Health check
@@ -30,6 +53,7 @@ export default {
           name: '2HJS Tracker API',
           version: '1.0.12',
           status: 'healthy',
+          user: email,
         }), {
           headers: { 'Content-Type': 'application/json' },
         });
@@ -43,6 +67,14 @@ export default {
         ).bind(email).first();
 
         if (user) {
+          // Update admin status if email matches ADMIN_EMAIL
+          const isAdmin = email === env.ADMIN_EMAIL;
+          if (user.role !== 'ADMIN' && isAdmin) {
+            await env.DB.prepare(
+              'UPDATE User SET role = ? WHERE id = ?'
+            ).bind('ADMIN', user.id).run();
+            user.role = 'ADMIN';
+          }
           await env.DB.prepare(
             'UPDATE User SET lastLoginAt = datetime("now") WHERE id = ?'
           ).bind(user.id).run();
@@ -67,7 +99,10 @@ export default {
         if (!fullUser) {
           return new Response(JSON.stringify({ error: 'User not found' }), {
             status: 404,
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': 'https://jobsearch-tracker.kongaiwen.dev',
+            },
           });
         }
 
@@ -87,7 +122,6 @@ export default {
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': 'https://jobsearch-tracker.kongaiwen.dev',
-            'Access-Control-Allow-Credentials': 'true',
             'Vary': 'Origin',
           },
         });
@@ -122,7 +156,10 @@ export default {
         }
 
         return new Response(JSON.stringify({ success: true }), {
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': 'https://jobsearch-tracker.kongaiwen.dev',
+          },
         });
       }
 
