@@ -103,6 +103,62 @@ export default {
         });
       }
 
+      // DEBUG: List all users (admin only, for debugging data migration)
+      if (url.pathname === '/api/debug/users' && request.method === 'GET') {
+        const users = await env.DB.prepare(
+          'SELECT id, email, role, publicKey, keyFingerprint, createdAt, storageUsed FROM User ORDER BY createdAt DESC'
+        ).all();
+
+        // Count data per user
+        const result = [];
+        for (const user of users.results || []) {
+          const employerCount = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM Employer WHERE userId = ?'
+          ).bind(user.id).first();
+          const contactCount = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM Contact WHERE userId = ?'
+          ).bind(user.id).first();
+          const outreachCount = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM Outreach WHERE userId = ?'
+          ).bind(user.id).first();
+
+          result.push({
+            ...user,
+            employerCount: employerCount?.count || 0,
+            contactCount: contactCount?.count || 0,
+            outreachCount: outreachCount?.count || 0,
+          });
+        }
+
+        return new Response(JSON.stringify(result, null, 2), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // DEBUG: Transfer data from one user to another
+      if (url.pathname === '/api/debug/transfer-data' && request.method === 'POST') {
+        const body = await request.json();
+        const { fromUserId, toUserId } = body;
+
+        if (!fromUserId || !toUserId) {
+          return new Response(JSON.stringify({ error: 'fromUserId and toUserId required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Update all records
+        await env.DB.prepare('UPDATE Employer SET userId = ? WHERE userId = ?').bind(toUserId, fromUserId).run();
+        await env.DB.prepare('UPDATE Contact SET userId = ? WHERE userId = ?').bind(toUserId, fromUserId).run();
+        await env.DB.prepare('UPDATE Outreach SET userId = ? WHERE userId = ?').bind(toUserId, fromUserId).run();
+        await env.DB.prepare('UPDATE Informational SET userId = ? WHERE userId = ?').bind(toUserId, fromUserId).run();
+        await env.DB.prepare('UPDATE EmailTemplate SET userId = ? WHERE userId = ?').bind(toUserId, fromUserId).run();
+        await env.DB.prepare('UPDATE Settings SET userId = ? WHERE userId = ?').bind(toUserId, fromUserId).run();
+
+        return new Response(JSON.stringify({ success: true, message: `Data transferred from ${fromUserId} to ${toUserId}` }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       // ==================== EMPLOYERS ====================
       if (url.pathname === '/api/employers' && request.method === 'GET') {
         const employers = await env.DB.prepare(
