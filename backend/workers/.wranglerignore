@@ -1,28 +1,20 @@
-# Frontend
-../../frontend
-../../frontend/**/*
+# Wrangler uses git, so patterns work from repo root
 
-# Root level
-../../node_modules
-../../.git
-../../.github
-../../dist
+# Exclude frontend entirely
+/frontend/
+/frontend/**/*
 
-# Backend (Express app - not used for worker)
-../src
-../dist
-../prisma
-../scripts
-../node_modules
+# Exclude backend Express app (not the worker)
+/backend/src/
+/backend/dist/
+/backend/prisma/
+/backend/scripts/
 
-# Development
-node_modules
-*.log
-.wrangler
-.env
-.env.*
+# Exclude root level
+/node_modules/
+/dist/
+/data/
+/backups/
+/.github/
 
-# Tests
-*.test.ts
-*.spec.ts
-vitest.config.ts
+# Only include backend/workers
