@@ -13,20 +13,22 @@ account_id = "REDACTED_ACCOUNT_ID"
 
 # Worker will be available at: https://2hjs-tracker.eviemariekolb.workers.dev
 
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "2hjs-tracker-db"
+database_id = "8099011b-afab-46e2-9308-ddea6363dc4c"
+
+# KV Namespace binding
+[[kv_namespaces]]
+binding = "KV"
+id = "47d8977bfe5f4591a0dee56fc243b030"
+
 [env.production]
 # Optional: Custom domain for API (commented out - using workers.dev URL)
 # routes = [
 #   { pattern = "api.jobsearch.kongaiwen.dev/*", zone_name = "kongaiwen.dev" }
 ]
-
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "2hjs-tracker-db"
-database_id = "8099011b-afab-46e2-9308-ddea6363dc4c"
-
-[[env.production.kv_namespaces]]
-binding = "KV"
-id = "47d8977bfe5f4591a0dee56fc243b030"
 
 [env.development]
 # Local development configuration
