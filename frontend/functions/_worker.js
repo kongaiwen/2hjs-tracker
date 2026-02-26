@@ -86,8 +86,9 @@ export default {
         }), {
           headers: {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
+            'Access-Control-Allow-Origin': 'https://jobsearch-tracker.kongaiwen.dev',
             'Access-Control-Allow-Credentials': 'true',
+            'Vary': 'Origin',
           },
         });
       }
