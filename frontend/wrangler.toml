@@ -1,0 +1,23 @@
+# Cloudflare Pages Functions Configuration
+# This configures the D1 database and KV bindings for the Pages Functions
+
+name = "2hjs-tracker-pages"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "2hjs-tracker-db"
+database_id = "8099011b-afab-46e2-9308-ddea6363dc4c"
+
+# KV Namespace binding
+[[kv_namespaces]]
+binding = "KV"
+id = "47d8977bfe5f4591a0dee56fc243b030"
+
+# Environment variables
+vars = { DEV_MODE = "false", DEV_EMAIL = "dev@example.com" }
+
+# Note: ADMIN_EMAIL should be set as a secret via:
+# wrangler pages secret put ADMIN_EMAIL --project-name=2hjs-tracker
