@@ -60,11 +60,12 @@ app.get('/', (c) => {
   });
 });
 
-// Auth routes (handled by auth middleware, but we need a me endpoint)
-app.route('/api/auth', authRoutes);
-
 // Protected API routes (require Cloudflare Access auth)
+// Note: Auth routes handle their own middleware, so apply this before registering auth routes
 app.use('/api/*', authMiddleware);
+
+// Auth routes (handled by auth middleware per-route)
+app.route('/api/auth', authRoutes);
 
 app.route('/api/employers', employerRoutes);
 app.route('/api/contacts', contactRoutes);

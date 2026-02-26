@@ -6,12 +6,11 @@
  */
 
 import { Hono } from 'hono';
-import { authMiddleware } from '../middleware/auth';
 
 const app = new Hono();
 
-// Get current user info
-app.get('/me', authMiddleware, async (c) => {
+// Get current user info (authMiddleware is applied globally in index.ts)
+app.get('/me', async (c) => {
   const userId = c.get('userId');
   const userEmail = c.get('userEmail');
   const tenantId = c.get('tenantId');
@@ -41,8 +40,8 @@ app.get('/me', authMiddleware, async (c) => {
   });
 });
 
-// Update public key (after key setup)
-app.put('/keys', authMiddleware, async (c) => {
+// Update public key (after key setup) - authMiddleware is applied globally
+app.put('/keys', async (c) => {
   const userId = c.get('userId');
 
   const body = await c.req.json();
