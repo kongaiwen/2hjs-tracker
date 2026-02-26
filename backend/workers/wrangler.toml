@@ -5,10 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 account_id = "REDACTED_ACCOUNT_ID"
 
 # Environment variables (set via wrangler secret or dashboard)
-# vars = {}
-#
+vars = { DEV_MODE = "false", DEV_EMAIL = "dev@example.com" }
+
 # Required secrets (set via: wrangler secret put <NAME>):
-# - JWT_SECRET: For admin session tokens
 # - ADMIN_EMAIL: Your email address for admin access
 
 # Worker will be available at: https://2hjs-tracker.eviemariekolb.workers.dev
@@ -28,7 +27,7 @@ id = "47d8977bfe5f4591a0dee56fc243b030"
 # Optional: Custom domain for API (commented out - using workers.dev URL)
 # routes = [
 #   { pattern = "api.jobsearch.kongaiwen.dev/*", zone_name = "kongaiwen.dev" }
-]
+#]
 
 [env.development]
 # Local development configuration
@@ -48,3 +47,11 @@ command = "echo 'No build step required for TypeScript with Wrangler'"
 # TypeScript configuration
 [ts_build]
 command = "tsc"
+
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true

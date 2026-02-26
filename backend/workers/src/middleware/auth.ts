@@ -12,6 +12,8 @@ import { Context, Next, MiddlewareHandler } from 'hono';
 interface AuthEnv {
   DB: D1Database;
   ADMIN_EMAIL: string;
+  DEV_MODE?: string;  // Set to 'true' to bypass auth for local development
+  DEV_EMAIL?: string; // Email to use in dev mode (default: dev@example.com)
 }
 
 interface User {
@@ -33,8 +35,13 @@ export const authMiddleware: MiddlewareHandler<{
     isAdmin: boolean;
   };
 }> = async (c, next) => {
-  // Get email from Cloudflare Access header
-  const email = c.req.header('CF-Access-User-Email');
+  // Get email from Cloudflare Access header, or use dev mode for local testing
+  let email = c.req.header('CF-Access-User-Email');
+
+  // Dev mode: allow local testing without Cloudflare Access
+  if (!email && c.env.DEV_MODE === 'true') {
+    email = c.env.DEV_EMAIL || 'dev@example.com';
+  }
 
   if (!email) {
     return c.json({ error: 'Authentication required', message: 'CF-Access-User-Email header missing' }, 401);

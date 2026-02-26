@@ -29,52 +29,14 @@ const api = axios.create({
   },
 });
 
-// Add auth interceptor - automatically include JWT in requests
-api.interceptors.request.use((config) => {
-  // Try to get token from localStorage (zustand persist)
-  const stored = localStorage.getItem('2hjs-auth');
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored);
-      if (parsed.state?.token) {
-        config.headers.Authorization = `Bearer ${parsed.state.token}`;
-      }
-    } catch (e) {
-      // Ignore parsing errors
-    }
-  }
-  return config;
-});
+// Cloudflare Access handles authentication via CF-Access-User-Email header
+// No JWT interceptor needed
 
-// Handle 401 responses - clear auth and redirect to login
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Clear auth and redirect to login
-      localStorage.removeItem('2hjs-auth');
-      if (window.location.pathname !== '/auth/login') {
-        window.location.href = '/auth/login';
-      }
-    }
-    return Promise.reject(error);
-  }
-);
-
-// Auth API endpoints
+// Auth API endpoints (simplified - only me endpoint needed for Cloudflare Access)
 export const authApi = {
-  requestLogin: (email: string) => api.post('/api/auth/login/request', { email }),
-  verifyLogin: (token: string) =>
-    api.post('/api/auth/login/verify', { token }),
-  requestRegister: (email: string, inviteToken: string) =>
-    api.post('/api/auth/register/request', { email, inviteToken }),
-  completeRegistration: (token: string, publicKey: string, email: string) =>
-    api.post('/api/auth/register/complete', { token, publicKey, email }),
-  validateInvite: (token: string) =>
-    api.get(`/api/auth/invites/validate/${token}`).then((r) => r.data),
-  createInvite: (maxUses?: number, expiresIn?: number) =>
-    api.post('/api/auth/invites/create', { maxUses, expiresIn }),
   me: () => api.get('/api/auth/me'),
+  updateKeys: (publicKey: string, keyFingerprint?: string, encryptedData?: string) =>
+    api.put('/api/auth/keys', { publicKey, keyFingerprint, encryptedData }),
 };
 
 // Employers

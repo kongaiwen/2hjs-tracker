@@ -1,20 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { CryptoService } from '@/services/cryptoService';
 import { KeyManager } from '@/services/keyManager';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 
 export function KeySetupPage() {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token') || '';
-  const email = searchParams.get('email') || '';
-
   const [step, setStep] = useState<'generating' | 'download'>('generating');
   const [generatedKeys, setGeneratedKeys] = useState<{ publicKey: string; privateKey: string } | null>(null);
   const [keyDownloaded, setKeyDownloaded] = useState(false);
   const navigate = useNavigate();
   const updateUser = useAuthStore((s) => s.updateUser);
+  const setHasKeys = useAuthStore((s) => s.setHasKeys);
 
   const crypto = new CryptoService();
   const keyManager = new KeyManager();
@@ -58,8 +55,10 @@ export function KeySetupPage() {
     if (!generatedKeys) return;
 
     try {
-      const response: any = await authApi.completeRegistration(token, generatedKeys.publicKey, email);
-      updateUser({ id: response.userId, email });
+      const keyFingerprint = crypto.fingerprintFromPEM(generatedKeys.publicKey);
+      await authApi.updateKeys(generatedKeys.publicKey, keyFingerprint);
+      setHasKeys(true);
+      updateUser({ hasEncryptionKeys: true, publicKey: generatedKeys.publicKey, keyFingerprint });
       navigate('/');
     } catch (err: any) {
       alert(err.response?.data?.error || 'Setup failed');

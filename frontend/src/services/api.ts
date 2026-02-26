@@ -40,9 +40,8 @@ export async function apiRequest<T = any>(
 
   // Handle 401 Unauthorized - Cloudflare Access session might have expired
   if (response.status === 401) {
-    // Redirect to login page
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+    // Cloudflare Access will handle re-authentication
+    throw new Error('Unauthorized - please refresh');
   }
 
   // Handle other errors
