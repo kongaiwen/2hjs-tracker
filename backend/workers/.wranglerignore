@@ -1,0 +1,28 @@
+# Frontend
+../../frontend
+../../frontend/**/*
+
+# Root level
+../../node_modules
+../../.git
+../../.github
+../../dist
+
+# Backend (Express app - not used for worker)
+../src
+../dist
+../prisma
+../scripts
+../node_modules
+
+# Development
+node_modules
+*.log
+.wrangler
+.env
+.env.*
+
+# Tests
+*.test.ts
+*.spec.ts
+vitest.config.ts
