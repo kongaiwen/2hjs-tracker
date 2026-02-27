@@ -14,11 +14,11 @@ const employerSchema = z.object({
   industry: z.string().nullable().optional(),
   location: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
-  advocacy: z.boolean().optional(),
+  advocacy: z.preprocess(v => typeof v === 'number' ? !!v : v, z.boolean()).optional(),
   motivation: z.number().int().min(0).max(3).optional(),
   posting: z.number().int().min(1).max(3).optional(),
   status: z.enum(['ACTIVE', 'ON_HOLD', 'RULED_OUT', 'OFFER_RECEIVED']).optional(),
-  isNetworkOrg: z.boolean().optional(),
+  isNetworkOrg: z.preprocess(v => typeof v === 'number' ? !!v : v, z.boolean()).optional(),
   encryptedData: z.string().nullable().optional(),
 });
 
