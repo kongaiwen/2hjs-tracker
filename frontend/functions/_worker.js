@@ -179,7 +179,7 @@ export default {
             await env.DB.prepare(`
               INSERT INTO Employer (id, userId, name, website, industry, location, notes,
                                     advocacy, motivation, posting, status, isNetworkOrg, createdAt, updatedAt)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).bind(
               newId, userId, emp.name, emp.website || null, emp.industry || null,
               emp.location || null, emp.notes || null,
@@ -239,7 +239,7 @@ export default {
             await env.DB.prepare(`
               INSERT INTO Outreach (id, employerId, contactId, userId, subject, body, wordCount,
                                     sentAt, threeB_Date, sevenB_Date, status, createdAt, updatedAt)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).bind(
               newId, newEmployerId, newContactId, userId, out.subject, out.body, out.wordCount,
               out.sentAt, out.threeB_Date, out.sevenB_Date, out.status || 'SENT'
