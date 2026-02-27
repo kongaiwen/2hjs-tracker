@@ -170,6 +170,12 @@ export default {
         if (employers && Array.isArray(employers)) {
           for (const emp of employers) {
             const newId = crypto.randomUUID();
+            // Handle PostgreSQL boolean strings ("t"/"f") and JS booleans
+            const advocacy = (emp.advocacy === true || emp.advocacy === 't' || emp.advocacy === 'true') ? 1 : 0;
+            const isNetworkOrg = (emp.isNetworkOrg === true || emp.isNetworkOrg === 't' || emp.isNetworkOrg === 'true') ? 1 : 0;
+            const motivation = parseInt(emp.motivation) || 0;
+            const posting = parseInt(emp.posting) || 1;
+
             await env.DB.prepare(`
               INSERT INTO Employer (id, userId, name, website, industry, location, notes,
                                     advocacy, motivation, posting, status, isNetworkOrg, createdAt, updatedAt)
@@ -177,8 +183,8 @@ export default {
             `).bind(
               newId, userId, emp.name, emp.website || null, emp.industry || null,
               emp.location || null, emp.notes || null,
-              emp.advocacy ? 1 : 0, emp.motivation ?? 0, emp.posting ?? 1,
-              emp.status || 'ACTIVE', emp.isNetworkOrg ? 1 : 0
+              advocacy, motivation, posting,
+              emp.status || 'ACTIVE', isNetworkOrg
             ).run();
 
             // Store old ID -> new ID mapping for contacts
@@ -194,6 +200,13 @@ export default {
             // Find the new employer ID
             const employer = employers?.find(e => e.id === contact.employerId);
             const newEmployerId = employer?._newId || null;
+            // Handle PostgreSQL boolean strings
+            const isFunctionallyRelevant = (contact.isFunctionallyRelevant === true || contact.isFunctionallyRelevant === 't') ? 1 : 0;
+            const isAlumni = (contact.isAlumni === true || contact.isAlumni === 't') ? 1 : 0;
+            const isInternallyPromoted = (contact.isInternallyPromoted === true || contact.isInternallyPromoted === 't') ? 1 : 0;
+            const hasUniqueName = (contact.hasUniqueName === true || contact.hasUniqueName === 't') ? 1 : 0;
+            const levelAboveTarget = parseInt(contact.levelAboveTarget) || 0;
+            const priority = parseInt(contact.priority) || 1;
 
             await env.DB.prepare(`
               INSERT INTO Contact (id, employerId, userId, name, title, email, linkedInUrl, phone,
@@ -203,10 +216,10 @@ export default {
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).bind(
               newId, newEmployerId, userId, contact.name, contact.title || null, contact.email || null,
-              contact.linkedInUrl || null, contact.phone || null, contact.isFunctionallyRelevant ? 1 : 0,
-              contact.isAlumni ? 1 : 0, contact.levelAboveTarget || 0, contact.isInternallyPromoted ? 1 : 0,
-              contact.hasUniqueName ? 1 : 0, contact.contactMethod || null, contact.segment || 'UNKNOWN',
-              contact.priority || 1, contact.notes || null
+              contact.linkedInUrl || null, contact.phone || null, isFunctionallyRelevant,
+              isAlumni, levelAboveTarget, isInternallyPromoted, hasUniqueName,
+              contact.contactMethod || null, contact.segment || 'UNKNOWN',
+              priority, contact.notes || null
             ).run();
 
             contact._newId = newId;
