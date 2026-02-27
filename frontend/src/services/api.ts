@@ -114,6 +114,7 @@ export const api = {
   getAdminStats: () => apiRequest('/admin/stats'),
   getAdminUsers: () => apiRequest('/admin/users'),
   getUserUsage: (userId: string) => apiRequest(`/admin/users/${userId}/usage`),
+  deleteUser: (userId: string) => apiRequest(`/admin/users/${userId}`, { method: 'DELETE' }),
 };
 
 export default api;

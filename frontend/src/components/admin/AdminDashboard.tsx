@@ -6,7 +6,9 @@
  */
 
 import { useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import api from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
 
 interface AdminStats {
   totalUsers: number;
@@ -31,6 +33,8 @@ export function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const currentUser = useAuthStore((s) => s.user);
 
   useEffect(() => {
     loadData();
@@ -50,6 +54,24 @@ export function AdminDashboard() {
       setError(err instanceof Error ? err.message : 'Failed to load admin data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, email: string) => {
+    if (!confirm(`Are you sure you want to delete user "${email}"? This will permanently delete all their data and cannot be undone.`)) {
+      return;
+    }
+    try {
+      setDeletingUserId(userId);
+      await api.deleteUser(userId);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      if (stats) {
+        setStats({ ...stats, totalUsers: stats.totalUsers - 1 });
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -147,6 +169,9 @@ export function AdminDashboard() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Joined
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -176,11 +201,23 @@ export function AdminDashboard() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(user.firstSeenAt)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    {user.id !== currentUser?.id && (
+                      <button
+                        onClick={() => handleDeleteUser(user.id, user.email)}
+                        disabled={deletingUserId === user.id}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                        title="Delete user"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
                     No users found
                   </td>
                 </tr>

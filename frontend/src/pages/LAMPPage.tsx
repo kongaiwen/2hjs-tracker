@@ -8,6 +8,9 @@ import {
   Edit2,
   Trash2,
   GripVertical,
+  ArrowUpDown,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { employersApi } from '@/lib/api';
 import { cn, getMotivationLabel, getPostingLabel } from '@/lib/utils';
@@ -82,6 +85,21 @@ export default function LAMPPage() {
     },
   });
 
+  const toggleLockMutation = useMutation({
+    mutationFn: ({ id, isLocked }: { id: string; isLocked: boolean }) =>
+      employersApi.toggleLock(id, isLocked),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employers'] });
+    },
+  });
+
+  const resortMutation = useMutation({
+    mutationFn: employersApi.resort,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employers'] });
+    },
+  });
+
   const handleDragStart = (index: number) => {
     dragIndexRef.current = index;
     isDraggingRef.current = true;
@@ -122,6 +140,14 @@ export default function LAMPPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => resortMutation.mutate()}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            disabled={resortMutation.isPending}
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            {resortMutation.isPending ? 'Sorting...' : 'Auto-Sort'}
+          </button>
           <button
             onClick={() => setIsAddingEmployer(true)}
             className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
@@ -267,7 +293,8 @@ export default function LAMPPage() {
                         deleteMutation.mutate(employer.id);
                       }
                     }}
-                    isLoading={updateMutation.isPending}
+                    onToggleLock={() => toggleLockMutation.mutate({ id: employer.id, isLocked: !employer.isLocked })}
+                    isLoading={updateMutation.isPending || toggleLockMutation.isPending}
                     isDragOver={dragOverIndex === index}
                     onDragStart={() => handleDragStart(index)}
                     onDragOver={(e) => handleDragOver(e, index)}
@@ -397,6 +424,7 @@ interface EmployerRowProps {
   onSave: (data: Partial<CreateEmployerInput>) => void;
   onCancel: () => void;
   onDelete: () => void;
+  onToggleLock: () => void;
   isLoading: boolean;
   isDragOver?: boolean;
   onDragStart?: () => void;
@@ -413,6 +441,7 @@ function EmployerRow({
   onSave,
   onCancel,
   onDelete,
+  onToggleLock,
   isLoading,
   isDragOver,
   onDragStart,
@@ -528,6 +557,9 @@ function EmployerRow({
       <td className="p-4">
         <div className="flex items-center gap-1.5">
           <GripVertical className="w-4 h-4 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0" />
+          {employer.isLocked && (
+            <Lock className="w-3 h-3 text-amber-600 shrink-0" />
+          )}
           <span
             className={cn(
               'w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
@@ -591,6 +623,17 @@ function EmployerRow({
       <td className="p-4 text-center">{employer._count?.contacts || 0}</td>
       <td className="p-4 text-right">
         <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onToggleLock}
+            disabled={isLoading}
+            className={cn(
+              'p-2 rounded-lg hover:bg-muted disabled:opacity-50',
+              employer.isLocked && 'bg-amber-100 text-amber-700'
+            )}
+            title={employer.isLocked ? 'Unlock position' : 'Lock position'}
+          >
+            {employer.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+          </button>
           <button
             onClick={onEdit}
             className="p-2 rounded-lg hover:bg-muted"

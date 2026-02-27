@@ -10,6 +10,7 @@ import {
   Briefcase,
   Info,
   Shield,
+  Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -21,6 +22,7 @@ const navItems = [
   { icon: Send, label: 'Outreach', path: '/outreach' },
   { icon: Calendar, label: 'Calendar', path: '/calendar' },
   { icon: FileText, label: 'Templates', path: '/templates' },
+  { icon: Upload, label: 'Bulk Upload', path: '/bulk' },
   { icon: Info, label: 'About', path: '/about' },
 ];
 

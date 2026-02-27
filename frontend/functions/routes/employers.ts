@@ -28,7 +28,7 @@ app.get('/', async (c) => {
   const userId = c.get('userId');
 
   const employers = await c.env.DB.prepare(
-    'SELECT * FROM Employer WHERE userId = ? ORDER BY createdAt DESC'
+    'SELECT * FROM Employer WHERE userId = ? ORDER BY displayOrder ASC, createdAt DESC'
   ).bind(userId).all();
 
   return c.json({ employers: employers.results });
@@ -189,6 +189,127 @@ app.delete('/:id', async (c) => {
   }
 
   return c.json({ success: true });
+});
+
+// Toggle employer lock status
+app.patch('/:id/lock', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  try {
+    const body = await c.req.json();
+    const { isLocked } = body;
+
+    // Check ownership
+    const existing = await c.env.DB.prepare(
+      'SELECT id FROM Employer WHERE id = ? AND userId = ?'
+    ).bind(id, userId).first();
+
+    if (!existing) {
+      return c.json({ error: 'Employer not found' }, 404);
+    }
+
+    await c.env.DB.prepare(`
+      UPDATE Employer
+      SET isLocked = ?, updatedAt = datetime('now')
+      WHERE id = ? AND userId = ?
+    `).bind(isLocked ? 1 : 0, id, userId).run();
+
+    const employer = await c.env.DB.prepare(
+      'SELECT * FROM Employer WHERE id = ?'
+    ).bind(id).first();
+
+    return c.json({ employer, success: true });
+  } catch (error) {
+    if (error instanceof Error) {
+      return c.json({ error: error.message }, 400);
+    }
+    return c.json({ error: 'Invalid request data' }, 400);
+  }
+});
+
+// Reorder employers (for drag-and-drop)
+app.post('/reorder', async (c) => {
+  const userId = c.get('userId');
+
+  try {
+    const body = await c.req.json();
+    const { employerIds } = body;
+
+    if (!Array.isArray(employerIds)) {
+      return c.json({ error: 'employerIds must be an array' }, 400);
+    }
+
+    // Update displayOrder for each employer
+    for (let i = 0; i < employerIds.length; i++) {
+      await c.env.DB.prepare(`
+        UPDATE Employer
+        SET displayOrder = ?, updatedAt = datetime('now')
+        WHERE id = ? AND userId = ?
+      `).bind(i, employerIds[i], userId).run();
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error) {
+      return c.json({ error: error.message }, 400);
+    }
+    return c.json({ error: 'Invalid request data' }, 400);
+  }
+});
+
+// Auto-sort employers by LAMP score (preserving locked positions)
+app.post('/resort', async (c) => {
+  const userId = c.get('userId');
+
+  try {
+    // Get all employers with current order
+    const employers = await c.env.DB.prepare(`
+      SELECT * FROM Employer WHERE userId = ? ORDER BY displayOrder
+    `).bind(userId).all();
+
+    const allEmployers = employers.results;
+
+    // Separate locked and unlocked
+    const locked = allEmployers.filter((e: any) => e.isLocked);
+    const unlocked = allEmployers.filter((e: any) => !e.isLocked);
+
+    // Sort unlocked by LAMP score (motivation * 100 + posting * 10 + advocacy)
+    unlocked.sort((a: any, b: any) => {
+      const scoreA = a.motivation * 100 + a.posting * 10 + (a.advocacy ? 1 : 0);
+      const scoreB = b.motivation * 100 + b.posting * 10 + (b.advocacy ? 1 : 0);
+      return scoreB - scoreA; // Descending (highest first)
+    });
+
+    // Merge: insert locked employers back at their original positions
+    const sorted: any[] = [];
+    let lockedIdx = 0;
+    let unlockedIdx = 0;
+
+    for (let i = 0; i < allEmployers.length; i++) {
+      const originalEmployer = allEmployers[i];
+      if (originalEmployer.isLocked) {
+        sorted.push(locked[lockedIdx++]);
+      } else {
+        sorted.push(unlocked[unlockedIdx++]);
+      }
+    }
+
+    // Update displayOrder for all
+    for (let i = 0; i < sorted.length; i++) {
+      await c.env.DB.prepare(`
+        UPDATE Employer SET displayOrder = ?, updatedAt = datetime('now')
+        WHERE id = ?
+      `).bind(i, sorted[i].id).run();
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error) {
+      return c.json({ error: error.message }, 500);
+    }
+    return c.json({ error: 'Auto-sort failed' }, 500);
+  }
 });
 
 export default app;

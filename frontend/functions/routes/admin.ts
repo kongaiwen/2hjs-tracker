@@ -73,4 +73,27 @@ app.get('/users/:userId/usage', async (c) => {
   return c.json({ metrics: metrics.results });
 });
 
+// Delete a user and all their data
+app.delete('/users/:userId', async (c) => {
+  const DB = c.env.DB;
+  const requesterId = c.get('userId');
+  const targetUserId = c.req.param('userId');
+
+  if (targetUserId === requesterId) {
+    return c.json({ error: 'Cannot delete your own account' }, 400);
+  }
+
+  await DB.prepare('DELETE FROM ChatMessage WHERE userId = ?').bind(targetUserId).run();
+  await DB.prepare('DELETE FROM EmailTemplate WHERE userId = ?').bind(targetUserId).run();
+  await DB.prepare('DELETE FROM Informational WHERE userId = ?').bind(targetUserId).run();
+  await DB.prepare('DELETE FROM Outreach WHERE userId = ?').bind(targetUserId).run();
+  await DB.prepare('DELETE FROM Contact WHERE userId = ?').bind(targetUserId).run();
+  await DB.prepare('DELETE FROM Employer WHERE userId = ?').bind(targetUserId).run();
+  await DB.prepare('DELETE FROM Settings WHERE userId = ?').bind(targetUserId).run();
+  await DB.prepare('DELETE FROM UsageMetrics WHERE userId = ?').bind(targetUserId).run();
+  await DB.prepare('DELETE FROM User WHERE id = ?').bind(targetUserId).run();
+
+  return c.json({ success: true });
+});
+
 export default app;

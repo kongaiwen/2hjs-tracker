@@ -14,6 +14,8 @@ export interface Employer {
   lampRank: number | null;
   status: EmployerStatus;
   isNetworkOrg: boolean;
+  displayOrder: number;
+  isLocked: boolean;
   contacts?: Contact[];
   outreach?: Outreach[];
   _count?: {

@@ -10,31 +10,62 @@ app.get('/', async (c) => {
   const userId = c.get('userId');
   const employerId = c.req.query('employerId');
 
-  let query = 'SELECT * FROM Contact WHERE userId = ?';
+  let query = `
+    SELECT c.*, e.id as _employerId, e.name as _employerName
+    FROM Contact c
+    LEFT JOIN Employer e ON c.employerId = e.id
+    WHERE c.userId = ?
+  `;
   const params: any[] = [userId];
 
   if (employerId) {
-    query += ' AND employerId = ?';
+    query += ' AND c.employerId = ?';
     params.push(employerId);
   }
 
-  query += ' ORDER BY priority ASC, createdAt DESC';
+  query += ' ORDER BY c.priority ASC, c.createdAt DESC';
 
   const contacts = await c.env.DB.prepare(query).bind(...params).all();
-  return c.json({ contacts: contacts.results });
+
+  // Map results to include employer object
+  const mappedContacts = contacts.results.map((row: any) => ({
+    ...row,
+    employer: row._employerId ? {
+      id: row._employerId,
+      name: row._employerName
+    } : null,
+    // Clean up temporary columns
+    _employerId: undefined,
+    _employerName: undefined
+  }));
+
+  return c.json({ contacts: mappedContacts });
 });
 
 app.get('/:id', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
 
-  const contact = await c.env.DB.prepare(
-    'SELECT * FROM Contact WHERE id = ? AND userId = ?'
-  ).bind(id, userId).first();
+  const row = await c.env.DB.prepare(`
+    SELECT c.*, e.id as _employerId, e.name as _employerName
+    FROM Contact c
+    LEFT JOIN Employer e ON c.employerId = e.id
+    WHERE c.id = ? AND c.userId = ?
+  `).bind(id, userId).first();
 
-  if (!contact) {
+  if (!row) {
     return c.json({ error: 'Contact not found' }, 404);
   }
+
+  const contact = {
+    ...row,
+    employer: row._employerId ? {
+      id: row._employerId,
+      name: row._employerName
+    } : null,
+    _employerId: undefined,
+    _employerName: undefined
+  };
 
   return c.json({ contact });
 });

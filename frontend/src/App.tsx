@@ -11,6 +11,7 @@ import TemplatesPage from '@/pages/TemplatesPage';
 import CalendarPage from '@/pages/CalendarPage';
 import SettingsPage from '@/pages/SettingsPage';
 import AboutPage from '@/pages/AboutPage';
+import BulkUploadPage from '@/pages/BulkUploadPage';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 
 // Protected Route wrapper
@@ -76,6 +77,7 @@ function App() {
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="bulk" element={<BulkUploadPage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="admin" element={
           <ProtectedRoute requireAdmin>

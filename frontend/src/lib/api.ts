@@ -41,30 +41,34 @@ export const authApi = {
 
 // Employers
 export const employersApi = {
-  getAll: () => api.get<Employer[]>('/api/employers').then((r) => r.data),
-  getOne: (id: string) => api.get<Employer>(`/api/employers/${id}`).then((r) => r.data),
-  getTopFive: () => api.get<Employer[]>('/api/employers/top/five').then((r) => r.data),
+  getAll: () => api.get<{ employers: Employer[] }>('/api/employers').then((r) => r.data.employers),
+  getOne: (id: string) => api.get<{ employer: Employer }>(`/api/employers/${id}`).then((r) => r.data.employer),
+  getTopFive: () => api.get<{ employers: Employer[] }>('/api/employers/top/five').then((r) => r.data.employers),
   create: (data: CreateEmployerInput) =>
-    api.post<Employer>('/api/employers', data).then((r) => r.data),
+    api.post<{ employer: Employer }>('/api/employers', data).then((r) => r.data.employer),
   update: (id: string, data: Partial<CreateEmployerInput>) =>
-    api.put<Employer>(`/api/employers/${id}`, data).then((r) => r.data),
+    api.put<{ employer: Employer }>(`/api/employers/${id}`, data).then((r) => r.data.employer),
   delete: (id: string) => api.delete(`/api/employers/${id}`),
   import: (employers: CreateEmployerInput[]) =>
     api.post<{ created: number }>('/api/employers/import', { employers }).then((r) => r.data),
   reorder: (employerIds: string[]) =>
     api.post('/api/employers/reorder', { employerIds }).then((r) => r.data),
+  resort: () =>
+    api.post('/api/employers/resort').then((r) => r.data),
+  toggleLock: (id: string, isLocked: boolean) =>
+    api.patch(`/api/employers/${id}/lock`, { isLocked }).then((r) => r.data),
 };
 
 // Contacts
 export const contactsApi = {
-  getAll: () => api.get<Contact[]>('/api/contacts').then((r) => r.data),
+  getAll: () => api.get<{ contacts: Contact[] }>('/api/contacts').then((r) => r.data.contacts),
   getByEmployer: (employerId: string) =>
-    api.get<Contact[]>(`/api/contacts/employer/${employerId}`).then((r) => r.data),
-  getOne: (id: string) => api.get<Contact>(`/api/contacts/${id}`).then((r) => r.data),
+    api.get<{ contacts: Contact[] }>(`/api/contacts/employer/${employerId}`).then((r) => r.data.contacts),
+  getOne: (id: string) => api.get<{ contact: Contact }>(`/api/contacts/${id}`).then((r) => r.data.contact),
   create: (data: CreateContactInput) =>
-    api.post<Contact>('/api/contacts', data).then((r) => r.data),
+    api.post<{ contact: Contact }>('/api/contacts', data).then((r) => r.data.contact),
   update: (id: string, data: Partial<CreateContactInput>) =>
-    api.put<Contact>(`/api/contacts/${id}`, data).then((r) => r.data),
+    api.put<{ contact: Contact }>(`/api/contacts/${id}`, data).then((r) => r.data.contact),
   updateSegment: (id: string, segment: ContactSegment) =>
     api.put<Contact>(`/api/contacts/${id}/segment`, { segment }).then((r) => r.data),
   delete: (id: string) => api.delete(`/api/contacts/${id}`),
@@ -74,12 +78,12 @@ export const contactsApi = {
 
 // Outreach
 export const outreachApi = {
-  getAll: () => api.get<Outreach[]>('/api/outreach').then((r) => r.data),
+  getAll: () => api.get<{ outreach: Outreach[] }>('/api/outreach').then((r) => r.data.outreach),
   getToday: () => api.get<TodayReminders>('/api/outreach/today').then((r) => r.data),
-  getOne: (id: string) => api.get<Outreach>(`/api/outreach/${id}`).then((r) => r.data),
+  getOne: (id: string) => api.get<{ outreach: Outreach }>(`/api/outreach/${id}`).then((r) => r.data.outreach),
   getStats: () => api.get<OutreachStats>('/api/outreach/stats/summary').then((r) => r.data),
   create: (data: CreateOutreachInput) =>
-    api.post<Outreach>('/api/outreach', data).then((r) => r.data),
+    api.post<{ outreach: Outreach }>('/api/outreach', data).then((r) => r.data.outreach),
   recordResponse: (
     id: string,
     data: { responseAt: string; responseType: ResponseType; notes?: string }
@@ -106,14 +110,14 @@ export const outreachApi = {
 
 // Templates
 export const templatesApi = {
-  getAll: () => api.get<EmailTemplate[]>('/api/templates').then((r) => r.data),
+  getAll: () => api.get<{ templates: EmailTemplate[] }>('/api/templates').then((r) => r.data.templates),
   getByType: (type: string) =>
-    api.get<EmailTemplate[]>(`/api/templates/type/${type}`).then((r) => r.data),
-  getOne: (id: string) => api.get<EmailTemplate>(`/api/templates/${id}`).then((r) => r.data),
+    api.get<{ templates: EmailTemplate[] }>(`/api/templates/type/${type}`).then((r) => r.data.templates),
+  getOne: (id: string) => api.get<{ template: EmailTemplate }>(`/api/templates/${id}`).then((r) => r.data.template),
   create: (data: Partial<EmailTemplate>) =>
-    api.post<EmailTemplate>('/api/templates', data).then((r) => r.data),
+    api.post<{ template: EmailTemplate }>('/api/templates', data).then((r) => r.data.template),
   update: (id: string, data: Partial<EmailTemplate>) =>
-    api.put<EmailTemplate>(`/api/templates/${id}`, data).then((r) => r.data),
+    api.put<{ template: EmailTemplate }>(`/api/templates/${id}`, data).then((r) => r.data.template),
   delete: (id: string) => api.delete(`/api/templates/${id}`),
   generate: (id: string, data: GenerateEmailInput) =>
     api

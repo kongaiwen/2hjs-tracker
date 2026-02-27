@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS Employer (
   -- Computed rank
   lampRank INTEGER,
 
+  -- Manual ordering and lock
+  displayOrder INTEGER DEFAULT 0,  -- For manual drag-and-drop ordering
+  isLocked INTEGER DEFAULT 0,  -- Boolean: lock position during auto-sort
+
   -- Status
   status TEXT DEFAULT 'ACTIVE',  -- ACTIVE, ON_HOLD, RULED_OUT, OFFER_RECEIVED
   isNetworkOrg INTEGER DEFAULT 0,  -- Boolean stored as int
@@ -264,3 +268,12 @@ CREATE TABLE IF NOT EXISTS UsageMetrics (
 
 CREATE INDEX idx_usageMetrics_userId ON UsageMetrics(userId);
 CREATE INDEX idx_usageMetrics_timestamp ON UsageMetrics(timestamp);
+
+-- ============================================================================
+-- MIGRATIONS
+-- Run these statements to update existing databases
+-- ============================================================================
+
+-- Migration: Add displayOrder and isLocked to Employer table
+-- ALTER TABLE Employer ADD COLUMN displayOrder INTEGER DEFAULT 0;
+-- ALTER TABLE Employer ADD COLUMN isLocked INTEGER DEFAULT 0;
