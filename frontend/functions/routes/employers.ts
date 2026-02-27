@@ -35,6 +35,19 @@ app.get('/', async (c) => {
   return c.json({ employers: employers.results });
 });
 
+// Get top 5 employers by LAMP score
+app.get('/top/five', async (c) => {
+  const userId = c.get('userId');
+
+  const employers = await c.env.DB.prepare(`
+    SELECT * FROM Employer WHERE userId = ? AND status = 'ACTIVE'
+    ORDER BY (motivation * 100 + posting * 10 + advocacy) DESC, displayOrder ASC
+    LIMIT 5
+  `).bind(userId).all();
+
+  return c.json({ employers: employers.results });
+});
+
 // Get single employer
 app.get('/:id', async (c) => {
   const userId = c.get('userId');
