@@ -1,8 +1,9 @@
 /**
  * Authentication Middleware for Cloudflare Access
  *
- * This middleware validates the CF-Access-User-Email header injected by
+ * Extracts user email from the CF_Authorization JWT cookie set by
  * Cloudflare Access (Zero Trust) when a user is authenticated via Google SSO.
+ * Falls back to CF-Access-User-Email header if available.
  *
  * On first login, a new User record is created automatically.
  */
@@ -26,6 +27,25 @@ interface User {
   dataVersion: number;
 }
 
+/**
+ * Extract email from CF_Authorization JWT cookie
+ */
+function getEmailFromJwt(cookieHeader: string | undefined): string | null {
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/CF_Authorization=([^;]+)/);
+  if (!match) return null;
+  try {
+    const parts = match[1].split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(atob(parts[1]));
+      return payload.email || null;
+    }
+  } catch {
+    // Invalid JWT
+  }
+  return null;
+}
+
 export const authMiddleware: MiddlewareHandler<{
   Bindings: AuthEnv;
   Variables: {
@@ -35,8 +55,10 @@ export const authMiddleware: MiddlewareHandler<{
     isAdmin: boolean;
   };
 }> = async (c, next) => {
-  // Get email from Cloudflare Access header, or use dev mode for local testing
-  let email = c.req.header('CF-Access-User-Email');
+  // Try CF_Authorization JWT cookie first, then fall back to header
+  let email = getEmailFromJwt(c.req.header('Cookie'))
+    || c.req.header('CF-Access-User-Email')
+    || null;
 
   // Dev mode: allow local testing without Cloudflare Access
   if (!email && c.env.DEV_MODE === 'true') {
@@ -44,7 +66,7 @@ export const authMiddleware: MiddlewareHandler<{
   }
 
   if (!email) {
-    return c.json({ error: 'Authentication required', message: 'CF-Access-User-Email header missing' }, 401);
+    return c.json({ error: 'Authentication required' }, 401);
   }
 
   // Try to find existing user
