@@ -51,7 +51,7 @@ app.put('/', async (c) => {
   const values: any[] = [];
 
   const allowedFields = ['defaultTimezone', 'workdayStart', 'workdayEnd',
-    'preferredCalendarId', 'claudeApiKey'];
+    'preferredCalendarId', 'claudeApiKey', 'encryptedData'];
 
   for (const field of allowedFields) {
     if (field in body) {

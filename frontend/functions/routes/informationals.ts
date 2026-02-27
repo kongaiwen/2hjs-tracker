@@ -24,11 +24,12 @@ app.post('/', async (c) => {
 
   await c.env.DB.prepare(`
     INSERT INTO Informational (id, userId, contactId, scheduledAt, duration, method,
-                               createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                               encryptedData, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `).bind(
     id, userId, body.contactId, body.scheduledAt, body.duration || 30,
-    body.method || 'PHONE'
+    body.method || 'PHONE',
+    body.encryptedData || null
   ).run();
 
   const informational = await c.env.DB.prepare('SELECT * FROM Informational WHERE id = ?').bind(id).first();

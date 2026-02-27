@@ -16,6 +16,13 @@ export interface EncryptedData {
   ciphertext: string;
 }
 
+export interface HybridEncryptedData {
+  v: 2;
+  wrappedKey: string; // base64 RSA-OAEP wrapped AES-256 key
+  iv: string;         // base64 12-byte IV
+  ct: string;         // base64 AES-GCM ciphertext
+}
+
 export class CryptoService {
   // Generate RSA-OAEP key pair for asymmetric encryption
   async generateKeyPair(): Promise<KeyPair> {
@@ -115,6 +122,84 @@ export class CryptoService {
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', exported);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+  }
+
+  // Hybrid encrypt: AES-256-GCM for data, RSA-OAEP to wrap the AES key
+  async hybridEncrypt(data: any, publicKey: CryptoKey): Promise<HybridEncryptedData> {
+    const encoder = new TextEncoder();
+    const plaintext = encoder.encode(JSON.stringify(data));
+
+    // Generate random AES-256 key and 12-byte IV
+    const aesKey = await window.crypto.subtle.generateKey(
+      { name: 'AES-GCM', length: 256 },
+      true,
+      ['encrypt']
+    );
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+    // Encrypt data with AES-GCM
+    const ciphertext = await window.crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      aesKey,
+      plaintext
+    );
+
+    // Export AES key and wrap it with RSA-OAEP
+    const rawAesKey = await window.crypto.subtle.exportKey('raw', aesKey);
+    const wrappedKey = await window.crypto.subtle.encrypt(
+      { name: 'RSA-OAEP' },
+      publicKey,
+      rawAesKey
+    );
+
+    return {
+      v: 2,
+      wrappedKey: this.arrayBufferToBase64(wrappedKey),
+      iv: this.arrayBufferToBase64(iv),
+      ct: this.arrayBufferToBase64(ciphertext),
+    };
+  }
+
+  // Hybrid decrypt: unwrap AES key with RSA, decrypt ciphertext with AES-GCM
+  async hybridDecrypt(payload: HybridEncryptedData, privateKey: CryptoKey): Promise<any> {
+    // Unwrap AES key with RSA-OAEP
+    const wrappedKeyBuf = this.base64ToArrayBuffer(payload.wrappedKey);
+    const rawAesKey = await window.crypto.subtle.decrypt(
+      { name: 'RSA-OAEP' },
+      privateKey,
+      wrappedKeyBuf
+    );
+
+    // Import AES key
+    const aesKey = await window.crypto.subtle.importKey(
+      'raw',
+      rawAesKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt']
+    );
+
+    // Decrypt ciphertext with AES-GCM
+    const iv = this.base64ToArrayBuffer(payload.iv);
+    const ct = this.base64ToArrayBuffer(payload.ct);
+    const decrypted = await window.crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      aesKey,
+      ct
+    );
+
+    const decoder = new TextDecoder();
+    return JSON.parse(decoder.decode(decrypted));
+  }
+
+  private arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
+    const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    return btoa(String.fromCharCode(...bytes));
+  }
+
+  private base64ToArrayBuffer(b64: string): ArrayBuffer {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    return bytes.buffer as ArrayBuffer;
   }
 
   // Generate fingerprint from PEM public key

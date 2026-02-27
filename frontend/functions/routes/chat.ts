@@ -24,11 +24,12 @@ app.post('/', async (c) => {
   const id = crypto.randomUUID();
 
   await c.env.DB.prepare(`
-    INSERT INTO ChatMessage (id, userId, role, content, metadata, createdAt)
-    VALUES (?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO ChatMessage (id, userId, role, content, metadata, encryptedData, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
   `).bind(
     id, userId, body.role, body.content,
-    body.metadata ? JSON.stringify(body.metadata) : null
+    body.metadata ? JSON.stringify(body.metadata) : null,
+    body.encryptedData || null
   ).run();
 
   const message = await c.env.DB.prepare('SELECT * FROM ChatMessage WHERE id = ?').bind(id).first();

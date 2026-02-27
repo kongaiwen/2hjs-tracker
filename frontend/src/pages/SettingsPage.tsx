@@ -1,13 +1,50 @@
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Mail, Calendar, Bot, Check, X, ExternalLink } from 'lucide-react';
+import { Mail, Calendar, Bot, Check, X, ExternalLink, Shield, Lock } from 'lucide-react';
 import { googleApi } from '@/lib/api';
+import { hasEncryptionKeys } from '@/services/encryptionService';
+import { migrateToEncrypted, getEncryptionStatus } from '@/services/dataMigration';
 import type { GoogleCalendar } from '@/types';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const googleStatus = searchParams.get('google');
+
+  // ── Data Encryption state ──────────────────────────────────────────────────
+  const [keysAvailable, setKeysAvailable] = useState(false);
+  const [encryptionStatus, setEncryptionStatus] = useState<Array<{
+    entityType: string; total: number; encrypted: number;
+  }>>([]);
+  const [migrating, setMigrating] = useState(false);
+  const [migrationProgress, setMigrationProgress] = useState<Array<{
+    entityType: string; total: number; encrypted: number; failed: number;
+  }>>([]);
+
+  useEffect(() => {
+    hasEncryptionKeys().then(setKeysAvailable);
+  }, []);
+
+  useEffect(() => {
+    if (keysAvailable) {
+      getEncryptionStatus().then(setEncryptionStatus);
+    }
+  }, [keysAvailable]);
+
+  const handleMigrate = async () => {
+    setMigrating(true);
+    try {
+      await migrateToEncrypted((progress) => {
+        setMigrationProgress([...progress]);
+      });
+      // Refresh status after migration
+      const status = await getEncryptionStatus();
+      setEncryptionStatus(status);
+    } finally {
+      setMigrating(false);
+    }
+  };
 
   const { data: googleAuthStatus, isLoading: googleLoading } = useQuery({
     queryKey: ['google-status'],
@@ -217,6 +254,64 @@ export default function SettingsPage() {
           </ul>
         </div>
       </div>
+
+      {/* Data Encryption */}
+      {keysAvailable && (
+        <div className="bg-card rounded-lg border border-border p-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Shield className="w-5 h-5" />
+            Data Encryption
+          </h2>
+          <p className="text-muted-foreground mb-4">
+            Your data is encrypted end-to-end using AES-256-GCM. New records are encrypted automatically.
+            Use the migration tool below to encrypt existing plaintext records.
+          </p>
+
+          {/* Encryption status */}
+          {encryptionStatus.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {encryptionStatus.map((s) => {
+                const pct = s.total > 0 ? Math.round((s.encrypted / s.total) * 100) : 100;
+                return (
+                  <div key={s.entityType} className="flex items-center gap-3">
+                    <span className="text-sm w-28 capitalize">{s.entityType}s</span>
+                    <div className="flex-1 bg-muted rounded-full h-2">
+                      <div
+                        className="bg-green-500 h-2 rounded-full transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="text-sm text-muted-foreground w-24 text-right">
+                      {s.encrypted}/{s.total} ({pct}%)
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Migration progress (while running) */}
+          {migrating && migrationProgress.length > 0 && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-medium text-blue-800 mb-2">Encrypting records...</p>
+              {migrationProgress.map((p) => (
+                <p key={p.entityType} className="text-sm text-blue-700">
+                  {p.entityType}: {p.encrypted} encrypted{p.failed > 0 ? `, ${p.failed} failed` : ''}
+                </p>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={handleMigrate}
+            disabled={migrating}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Lock className="w-4 h-4" />
+            {migrating ? 'Encrypting...' : 'Encrypt All Data'}
+          </button>
+        </div>
+      )}
 
       {/* About */}
       <div className="bg-card rounded-lg border border-border p-6">

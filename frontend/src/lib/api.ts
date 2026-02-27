@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
 import type {
   Employer,
   Contact,
@@ -21,12 +21,167 @@ import type {
   CalendarEvent,
   GoogleCalendar,
 } from '@/types';
+import {
+  encryptRecord,
+  decryptRecord,
+  decryptRecords,
+  hasEncryptionKeys,
+  getSensitiveFields,
+  type EntityType,
+} from '@/services/encryptionService';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// ─── URL → EntityType mapping ────────────────────────────────────────────────
+
+function urlToEntityType(url: string): EntityType | null {
+  if (/\/api\/employers/.test(url)) return 'employer';
+  if (/\/api\/contacts/.test(url)) return 'contact';
+  if (/\/api\/outreach/.test(url)) return 'outreach';
+  if (/\/api\/informationals/.test(url)) return 'informational';
+  if (/\/api\/templates/.test(url)) return 'emailTemplate';
+  if (/\/api\/settings/.test(url)) return 'settings';
+  if (/\/api\/claude\/history/.test(url)) return 'chatMessage';
+  if (/\/api\/chat/.test(url)) return 'chatMessage';
+  return null;
+}
+
+// Placeholder values for NOT NULL columns when data is encrypted
+const NOT_NULL_PLACEHOLDERS: Partial<Record<EntityType, Record<string, any>>> = {
+  employer: { name: '[encrypted]' },
+  contact: { name: '[encrypted]' },
+  outreach: { subject: '[encrypted]', body: '[encrypted]' },
+  emailTemplate: { name: '[encrypted]', subject: '[encrypted]', body: '[encrypted]' },
+  chatMessage: { content: '[encrypted]' },
+};
+
+// ─── Request interceptor: encrypt outgoing data ──────────────────────────────
+
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  const method = config.method?.toLowerCase();
+  if (!method || !['post', 'put', 'patch'].includes(method)) return config;
+  if (!config.data || typeof config.data !== 'object') return config;
+
+  const url = config.url || '';
+  const entityType = urlToEntityType(url);
+  if (!entityType) return config;
+
+  // Skip non-data endpoints (reorder, resort, lock, response, etc.)
+  if (/\/(reorder|resort|lock|response|follow-up|move-on|no-response|calendar-events|segment|import|generate|seed|revoke)/.test(url)) {
+    return config;
+  }
+
+  const keysExist = await hasEncryptionKeys();
+  if (!keysExist) return config;
+
+  try {
+    const encrypted = await encryptRecord(entityType, config.data);
+
+    // Set placeholder values for NOT NULL fields so server validation passes
+    const placeholders = NOT_NULL_PLACEHOLDERS[entityType];
+    if (placeholders && encrypted.encryptedData) {
+      const sensitiveFields = getSensitiveFields(entityType);
+      for (const field of sensitiveFields) {
+        if (field in placeholders) {
+          encrypted[field] = placeholders[field];
+        } else {
+          // Null out other sensitive fields
+          encrypted[field] = null;
+        }
+      }
+    }
+
+    config.data = encrypted;
+  } catch {
+    // Encryption failed — send plaintext rather than block the user
+  }
+
+  return config;
+});
+
+// ─── Response interceptor: decrypt incoming data ─────────────────────────────
+
+api.interceptors.response.use(async (response: AxiosResponse) => {
+  const url = response.config.url || '';
+
+  const keysExist = await hasEncryptionKeys();
+  if (!keysExist) return response;
+
+  const data = response.data;
+  if (!data || typeof data !== 'object') return response;
+
+  // Special case: bulk export contains multiple entity types
+  if (/\/api\/bulk\/export/.test(url)) {
+    try {
+      if (Array.isArray(data.employers)) data.employers = await decryptRecords('employer', data.employers);
+      if (Array.isArray(data.contacts)) data.contacts = await decryptRecords('contact', data.contacts);
+      if (Array.isArray(data.outreach)) data.outreach = await decryptRecords('outreach', data.outreach);
+      if (Array.isArray(data.templates)) data.templates = await decryptRecords('emailTemplate', data.templates);
+      if (Array.isArray(data.informationals)) data.informationals = await decryptRecords('informational', data.informationals);
+    } catch { /* decryption failed — return as-is */ }
+    return response;
+  }
+
+  const entityType = urlToEntityType(url);
+  if (!entityType) return response;
+
+  try {
+    // Handle different response shapes per entity type
+    // Wrapped single: { employer: {...} }, { contact: {...} }, etc.
+    // Wrapped array:  { employers: [...] }, { contacts: [...] }, etc.
+    // Direct array:   [...] (informationals, chat history)
+    // Nested:         { threeBReminders: [...], sevenBReminders: [...] } (outreach/today)
+
+    if (entityType === 'outreach' && url.includes('/today')) {
+      // Special case: /outreach/today returns nested arrays
+      for (const key of ['threeBReminders', 'sevenBReminders', 'overdueItems', 'upcomingItems']) {
+        if (Array.isArray(data[key])) {
+          data[key] = await decryptRecords('outreach', data[key]);
+        }
+      }
+    } else if (Array.isArray(data)) {
+      // Direct array response
+      response.data = await decryptRecords(entityType, data);
+    } else {
+      // Check for wrapped responses
+      const singularKeys: Record<EntityType, string> = {
+        employer: 'employer',
+        contact: 'contact',
+        outreach: 'outreach',
+        informational: 'informational',
+        emailTemplate: 'template',
+        settings: 'settings',
+        chatMessage: 'message',
+      };
+      const pluralKeys: Record<EntityType, string> = {
+        employer: 'employers',
+        contact: 'contacts',
+        outreach: 'outreach',
+        informational: 'informationals',
+        emailTemplate: 'templates',
+        settings: 'settings',
+        chatMessage: 'messages',
+      };
+
+      const pluralKey = pluralKeys[entityType];
+      const singularKey = singularKeys[entityType];
+
+      if (pluralKey && Array.isArray(data[pluralKey])) {
+        data[pluralKey] = await decryptRecords(entityType, data[pluralKey]);
+      } else if (singularKey && data[singularKey] && typeof data[singularKey] === 'object' && !Array.isArray(data[singularKey])) {
+        data[singularKey] = await decryptRecord(entityType, data[singularKey]);
+      }
+    }
+  } catch {
+    // Decryption failed — return response as-is
+  }
+
+  return response;
 });
 
 // Cloudflare Access handles authentication via CF-Access-User-Email header

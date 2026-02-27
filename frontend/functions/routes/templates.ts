@@ -23,12 +23,13 @@ app.post('/', async (c) => {
   const id = crypto.randomUUID();
 
   await c.env.DB.prepare(`
-    INSERT INTO EmailTemplate (id, userId, name, type, subject, body, variables, wordCount, isDefault, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    INSERT INTO EmailTemplate (id, userId, name, type, subject, body, variables, wordCount, isDefault, encryptedData, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `).bind(
     id, userId, body.name, body.type, body.subject, body.body,
     JSON.stringify(body.variables || []), body.wordCount,
-    body.isDefault ? 1 : 0
+    body.isDefault ? 1 : 0,
+    body.encryptedData || null
   ).run();
 
   const template = await c.env.DB.prepare('SELECT * FROM EmailTemplate WHERE id = ?').bind(id).first();

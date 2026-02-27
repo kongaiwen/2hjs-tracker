@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS Employer (
   location TEXT,
   notes TEXT,
 
+  -- E2E encrypted data blob
+  encryptedData TEXT,
+
   -- LAMP scores
   advocacy INTEGER DEFAULT 0,  -- 0 or 1 (Boolean stored as int)
   motivation INTEGER DEFAULT 0,
@@ -76,6 +79,9 @@ CREATE TABLE IF NOT EXISTS Contact (
   email TEXT,
   linkedInUrl TEXT,
   phone TEXT,
+
+  -- E2E encrypted data blob
+  encryptedData TEXT,
 
   -- Prioritization
   isFunctionallyRelevant INTEGER DEFAULT 0,
@@ -115,6 +121,9 @@ CREATE TABLE IF NOT EXISTS Outreach (
   subject TEXT NOT NULL,
   body TEXT NOT NULL,
   wordCount INTEGER NOT NULL,
+
+  -- E2E encrypted data blob
+  encryptedData TEXT,
 
   -- Tracking
   sentAt TEXT NOT NULL,
@@ -161,6 +170,9 @@ CREATE TABLE IF NOT EXISTS Informational (
   duration INTEGER DEFAULT 30,
   method TEXT DEFAULT 'PHONE',  -- PHONE, VIDEO, IN_PERSON
 
+  -- E2E encrypted data blob
+  encryptedData TEXT,
+
   -- Preparation
   researchNotes TEXT,
   bigFourAnswers TEXT,  -- JSON string
@@ -197,6 +209,7 @@ CREATE TABLE IF NOT EXISTS EmailTemplate (
   subject TEXT NOT NULL,
   body TEXT NOT NULL,
   variables TEXT,  -- JSON array as string
+  encryptedData TEXT,
   wordCount INTEGER NOT NULL,
   isDefault INTEGER DEFAULT 0,
 
@@ -216,6 +229,9 @@ CREATE TABLE IF NOT EXISTS Settings (
 
   -- Multi-tenancy
   userId TEXT UNIQUE,
+
+  -- E2E encrypted data blob
+  encryptedData TEXT,
 
   -- Google OAuth tokens
   googleAccessToken TEXT,
@@ -245,6 +261,7 @@ CREATE TABLE IF NOT EXISTS ChatMessage (
   role TEXT NOT NULL,  -- USER, ASSISTANT, SYSTEM
   content TEXT NOT NULL,
   metadata TEXT,  -- JSON string
+  encryptedData TEXT,
 
   -- Multi-tenancy
   userId TEXT,
@@ -277,3 +294,12 @@ CREATE INDEX idx_usageMetrics_timestamp ON UsageMetrics(timestamp);
 -- Migration: Add displayOrder and isLocked to Employer table
 -- ALTER TABLE Employer ADD COLUMN displayOrder INTEGER DEFAULT 0;
 -- ALTER TABLE Employer ADD COLUMN isLocked INTEGER DEFAULT 0;
+
+-- Migration: Add encryptedData column for E2E encryption
+-- ALTER TABLE Employer ADD COLUMN encryptedData TEXT;
+-- ALTER TABLE Contact ADD COLUMN encryptedData TEXT;
+-- ALTER TABLE Outreach ADD COLUMN encryptedData TEXT;
+-- ALTER TABLE Informational ADD COLUMN encryptedData TEXT;
+-- ALTER TABLE EmailTemplate ADD COLUMN encryptedData TEXT;
+-- ALTER TABLE Settings ADD COLUMN encryptedData TEXT;
+-- ALTER TABLE ChatMessage ADD COLUMN encryptedData TEXT;

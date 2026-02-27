@@ -19,6 +19,7 @@ const employerSchema = z.object({
   posting: z.number().int().min(1).max(3).optional(),
   status: z.enum(['ACTIVE', 'ON_HOLD', 'RULED_OUT', 'OFFER_RECEIVED']).optional(),
   isNetworkOrg: z.boolean().optional(),
+  encryptedData: z.string().nullable().optional(),
 });
 
 const app = new Hono();
@@ -62,8 +63,8 @@ app.post('/', async (c) => {
 
     await c.env.DB.prepare(`
       INSERT INTO Employer (id, userId, name, website, industry, location, notes,
-                            advocacy, motivation, posting, status, isNetworkOrg, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                            advocacy, motivation, posting, status, isNetworkOrg, encryptedData, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `).bind(
       id,
       userId,
@@ -76,7 +77,8 @@ app.post('/', async (c) => {
       data.motivation ?? 0,
       data.posting ?? 1,
       data.status || 'ACTIVE',
-      data.isNetworkOrg ? 1 : 0
+      data.isNetworkOrg ? 1 : 0,
+      data.encryptedData || null
     ).run();
 
     const employer = await c.env.DB.prepare(
@@ -153,6 +155,10 @@ app.put('/:id', async (c) => {
     if (data.isNetworkOrg !== undefined) {
       updates.push('isNetworkOrg = ?');
       values.push(data.isNetworkOrg ? 1 : 0);
+    }
+    if (data.encryptedData !== undefined) {
+      updates.push('encryptedData = ?');
+      values.push(data.encryptedData || null);
     }
 
     updates.push('updatedAt = datetime(\'now\')');

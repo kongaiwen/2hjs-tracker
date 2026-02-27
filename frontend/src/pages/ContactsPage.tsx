@@ -150,6 +150,24 @@ export default function ContactsPage() {
     return map;
   }, [topXEmployerIds]);
 
+  // ── resolve employer names from decrypted employers list ────────────────────
+  const employerNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (employers || []).forEach(e => map.set(e.id, e.name));
+    return map;
+  }, [employers]);
+
+  // Patch contact employer names (server JOIN returns '[encrypted]' after E2E encryption)
+  const patchedContacts = useMemo(() => {
+    return (allContacts || []).map(c => {
+      const resolvedName = employerNameMap.get(c.employerId);
+      if (resolvedName && c.employer && c.employer.name !== resolvedName) {
+        return { ...c, employer: { ...c.employer, name: resolvedName } };
+      }
+      return c;
+    });
+  }, [allContacts, employerNameMap]);
+
   const companiesWithActiveOutreach = useMemo(() => {
     const ids = new Set<string>();
     (allContacts || []).forEach(c => {
@@ -181,7 +199,7 @@ export default function ContactsPage() {
 
   // ── filtered + sorted list ───────────────────────────────────────────────────
   const contacts = useMemo(() => {
-    let result = allContacts || [];
+    let result = patchedContacts;
 
     // view filter
     if (view === 'uncontacted') {
@@ -260,7 +278,7 @@ export default function ContactsPage() {
           return (a.employer?.name || '').localeCompare(b.employer?.name || '');
       }
     });
-  }, [allContacts, view, selectedEmployerId, selectedSegment, orgType, sortBy, topXEnabled, topXEmployerIds, topXEmployerRank, excludeActiveCompanies, companiesWithActiveOutreach, employers]);
+  }, [patchedContacts, view, selectedEmployerId, selectedSegment, orgType, sortBy, topXEnabled, topXEmployerIds, topXEmployerRank, excludeActiveCompanies, companiesWithActiveOutreach, employers]);
 
   const showOutreachColumns = view !== 'uncontacted';
 

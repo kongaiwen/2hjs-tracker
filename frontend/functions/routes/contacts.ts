@@ -80,8 +80,8 @@ app.post('/', async (c) => {
     INSERT INTO Contact (id, userId, employerId, name, title, email, linkedInUrl, phone,
                          isFunctionallyRelevant, isAlumni, levelAboveTarget,
                          isInternallyPromoted, hasUniqueName, contactMethod,
-                         segment, priority, notes, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                         segment, priority, notes, encryptedData, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `).bind(
     id, userId, body.employerId, body.name, body.title || null, body.email || null,
     body.linkedInUrl || null, body.phone || null,
@@ -93,7 +93,8 @@ app.post('/', async (c) => {
     body.contactMethod || null,
     body.segment || 'UNKNOWN',
     body.priority || 1,
-    body.notes || null
+    body.notes || null,
+    body.encryptedData || null
   ).run();
 
   const contact = await c.env.DB.prepare('SELECT * FROM Contact WHERE id = ?').bind(id).first();
@@ -118,7 +119,7 @@ app.put('/:id', async (c) => {
 
   const updatable = ['name', 'title', 'email', 'linkedInUrl', 'phone', 'notes',
     'isFunctionallyRelevant', 'isAlumni', 'levelAboveTarget', 'isInternallyPromoted',
-    'hasUniqueName', 'contactMethod', 'segment', 'priority'];
+    'hasUniqueName', 'contactMethod', 'segment', 'priority', 'encryptedData'];
 
   for (const field of updatable) {
     if (field in body) {

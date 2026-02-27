@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Upload, Download, FileText } from 'lucide-react';
-import { employersApi, contactsApi, templatesApi } from '@/lib/api';
+import api, { employersApi, contactsApi, templatesApi } from '@/lib/api';
 
 interface BulkData {
   employers: Array<{
@@ -179,7 +179,7 @@ export default function BulkUploadPage() {
 
   const handleDownload = async () => {
     try {
-      const data = await fetch('/api/bulk/export').then(r => r.json());
+      const data = await api.get('/api/bulk/export').then(r => r.data);
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

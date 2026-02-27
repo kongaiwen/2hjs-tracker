@@ -37,12 +37,13 @@ app.post('/', async (c) => {
 
   await c.env.DB.prepare(`
     INSERT INTO Outreach (id, userId, employerId, contactId, subject, body, wordCount,
-                          sentAt, threeB_Date, sevenB_Date, status, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                          sentAt, threeB_Date, sevenB_Date, status, encryptedData, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `).bind(
     id, userId, body.employerId, body.contactId, body.subject, body.body,
     body.wordCount, body.sentAt, body.threeB_Date, body.sevenB_Date,
-    body.status || 'SENT'
+    body.status || 'SENT',
+    body.encryptedData || null
   ).run();
 
   const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
