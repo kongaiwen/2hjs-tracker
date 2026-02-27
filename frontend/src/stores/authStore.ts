@@ -50,18 +50,16 @@ export const useAuthStore = create<AuthState>()(
 
           if (res.ok) {
             const data = await res.json();
-            const hasKeys = !!data.publicKey;
 
             set({
               user: data,
               isAuthenticated: true,
-              hasEncryptionKeys: hasKeys,
+              hasEncryptionKeys: !!data.hasEncryptionKeys,
               isLoading: false,
             });
 
-            // Only redirect to key setup if user explicitly has no keys
-            // If publicKey is null/undefined, redirect
-            if (data.publicKey === null || data.publicKey === undefined) {
+            // Only redirect to key setup on first onboarding (no keys set yet)
+            if (!data.hasEncryptionKeys) {
               if (!window.location.pathname.includes('/setup-keys')) {
                 window.location.href = '/setup-keys';
               }
