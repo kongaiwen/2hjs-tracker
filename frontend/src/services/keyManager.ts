@@ -35,23 +35,35 @@ export class KeyManager {
     return await crypto.importPrivateKey(keys.privateKey);
   }
 
-  // IndexedDB helpers
+  // IndexedDB helpers — wrap IDBRequest in proper Promises
   private async idbSet(key: string, value: any): Promise<void> {
     const db = await this.openDB();
-    const tx = db.transaction('keys', 'readwrite');
-    await tx.objectStore('keys').put(value, key);
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('keys', 'readwrite');
+      const request = tx.objectStore('keys').put(value, key);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   }
 
   private async idbGet(key: string): Promise<any> {
     const db = await this.openDB();
-    const tx = db.transaction('keys', 'readonly');
-    return await tx.objectStore('keys').get(key);
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('keys', 'readonly');
+      const request = tx.objectStore('keys').get(key);
+      request.onsuccess = () => resolve(request.result ?? null);
+      request.onerror = () => reject(request.error);
+    });
   }
 
   private async idbDelete(key: string): Promise<void> {
     const db = await this.openDB();
-    const tx = db.transaction('keys', 'readwrite');
-    await tx.objectStore('keys').delete(key);
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('keys', 'readwrite');
+      const request = tx.objectStore('keys').delete(key);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   }
 
   private openDB(): Promise<IDBDatabase> {
