@@ -50,7 +50,7 @@ export default {
 
         await env.DB.prepare(`
           INSERT INTO User (id, email, tenantId, role, firstSeenAt, lastLoginAt, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), datetime('now'))
+          VALUES (?, ?, ?, datetime('now'), datetime('now'), datetime('now'), datetime('now'))
         `).bind(id, email, tenantId, isAdmin ? 'ADMIN' : 'USER').run();
 
         user = { id, email, tenantId, role: isAdmin ? 'ADMIN' : 'USER' };
@@ -179,7 +179,7 @@ export default {
             await env.DB.prepare(`
               INSERT INTO Employer (id, userId, name, website, industry, location, notes,
                                     advocacy, motivation, posting, status, isNetworkOrg, createdAt, updatedAt)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).bind(
               newId, userId, emp.name, emp.website || null, emp.industry || null,
               emp.location || null, emp.notes || null,
@@ -213,7 +213,7 @@ export default {
                                     isFunctionallyRelevant, isAlumni, levelAboveTarget,
                                     isInternallyPromoted, hasUniqueName, contactMethod,
                                     segment, priority, notes, createdAt, updatedAt)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).bind(
               newId, newEmployerId, userId, contact.name, contact.title || null, contact.email || null,
               contact.linkedInUrl || null, contact.phone || null, isFunctionallyRelevant,
@@ -239,7 +239,7 @@ export default {
             await env.DB.prepare(`
               INSERT INTO Outreach (id, employerId, contactId, userId, subject, body, wordCount,
                                     sentAt, threeB_Date, sevenB_Date, status, createdAt, updatedAt)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).bind(
               newId, newEmployerId, newContactId, userId, out.subject, out.body, out.wordCount,
               out.sentAt, out.threeB_Date, out.sevenB_Date, out.status || 'SENT'
@@ -258,7 +258,7 @@ export default {
 
             await env.DB.prepare(`
               INSERT INTO Informational (id, contactId, userId, scheduledAt, duration, method, createdAt, updatedAt)
-              VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+              VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).bind(newId, newContactId, userId, info.scheduledAt, info.duration || 30, info.method || 'PHONE').run();
 
             imported.informationals++;
@@ -271,7 +271,7 @@ export default {
             const newId = crypto.randomUUID();
             await env.DB.prepare(`
               INSERT INTO EmailTemplate (id, userId, name, type, subject, body, variables, wordCount, isDefault, createdAt, updatedAt)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).bind(
               newId, userId, tpl.name, tpl.type, tpl.subject, tpl.body,
               JSON.stringify(tpl.variables || []), tpl.wordCount, tpl.isDefault ? 1 : 0
@@ -355,7 +355,7 @@ export default {
         await env.DB.prepare(`
           INSERT INTO Employer (id, userId, name, website, industry, location, notes,
                                 advocacy, motivation, posting, status, isNetworkOrg, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         `).bind(
           id, userId, body.name, body.website || null, body.industry || null,
           body.location || null, body.notes || null,
@@ -434,7 +434,7 @@ export default {
                                 isFunctionallyRelevant, isAlumni, levelAboveTarget,
                                 isInternallyPromoted, hasUniqueName, contactMethod,
                                 segment, priority, notes, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         `).bind(
           id, body.employerId, userId, body.name, body.title || null, body.email || null,
           body.linkedInUrl || null, body.phone || null, body.isFunctionallyRelevant ? 1 : 0,
@@ -492,7 +492,7 @@ export default {
 
         await env.DB.prepare(`
           INSERT INTO EmailTemplate (id, userId, name, type, subject, body, variables, wordCount, isDefault, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         `).bind(
           id, userId, body.name, body.type, body.subject, body.body,
           JSON.stringify(body.variables || []), body.wordCount, body.isDefault ? 1 : 0
@@ -514,7 +514,7 @@ export default {
         if (!settings) {
           await env.DB.prepare(`
             INSERT INTO Settings (id, userId, defaultTimezone, workdayStart, workdayEnd, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
           `).bind(crypto.randomUUID(), userId, 'America/New_York', '09:00', '17:00').run();
 
           settings = await env.DB.prepare('SELECT * FROM Settings WHERE userId = ?').bind(userId).first();
@@ -561,7 +561,7 @@ export default {
         await env.DB.prepare(`
           INSERT INTO Outreach (id, employerId, contactId, userId, subject, body, wordCount,
                               sentAt, threeB_Date, sevenB_Date, status, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         `).bind(
           id, body.employerId, body.contactId, userId, body.subject, body.body, body.wordCount,
           body.sentAt, body.threeB_Date, body.sevenB_Date, body.status || 'SENT'
@@ -589,7 +589,7 @@ export default {
 
         await env.DB.prepare(`
           INSERT INTO Informational (id, contactId, userId, scheduledAt, duration, method, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
         `).bind(id, body.contactId, userId, body.scheduledAt, body.duration || 30, body.method || 'PHONE').run();
 
         const informational = await env.DB.prepare('SELECT * FROM Informational WHERE id = ?').bind(id).first();
