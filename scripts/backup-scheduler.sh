@@ -5,7 +5,8 @@
 
 set -e
 
-BACKUP_DIR="/home/evie-marie-home/Projects/2hjs-tracker/backups"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKUP_DIR="${SCRIPT_DIR}/../backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RETENTION_DAYS=30  # Keep backups for 30 days
 
@@ -14,7 +15,7 @@ mkdir -p "$BACKUP_DIR"
 echo "[$(date)] Starting database backup..."
 
 # Get database credentials from .env
-source /home/evie-marie-home/Projects/2hjs-tracker/.env 2>/dev/null || true
+source "${SCRIPT_DIR}/../.env" 2>/dev/null || true
 
 # Create compressed backup via Docker
 docker exec 2hjs-tracker_postgres_1 pg_dump -U 2hjs 2hjs_tracker | gzip > "$BACKUP_DIR/auto_backup_${TIMESTAMP}.sql.gz"

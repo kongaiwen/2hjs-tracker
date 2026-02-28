@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Mail, Calendar, Bot, Check, X, ExternalLink, Shield, Lock } from 'lucide-react';
-import { googleApi } from '@/lib/api';
+import { Mail, Calendar, Check, X, Shield, Lock } from 'lucide-react';
 import { hasEncryptionKeys } from '@/services/encryptionService';
 import { migrateToEncrypted, getEncryptionStatus } from '@/services/dataMigration';
-import type { GoogleCalendar } from '@/types';
 
 export default function SettingsPage() {
-  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const googleStatus = searchParams.get('google');
 
@@ -46,43 +42,6 @@ export default function SettingsPage() {
     }
   };
 
-  const { data: googleAuthStatus, isLoading: googleLoading } = useQuery({
-    queryKey: ['google-status'],
-    queryFn: googleApi.getStatus,
-  });
-
-  const { data: authUrl } = useQuery({
-    queryKey: ['google-auth-url'],
-    queryFn: googleApi.getAuthUrl,
-    enabled: !googleAuthStatus?.isAuthenticated,
-  });
-
-  const revokeMutation = useMutation({
-    mutationFn: googleApi.revoke,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['google-status'] });
-    },
-  });
-
-  const { data: calendarList, isLoading: calendarsLoading } = useQuery({
-    queryKey: ['google-calendar-list'],
-    queryFn: googleApi.getCalendarList,
-    enabled: googleAuthStatus?.isAuthenticated === true,
-  });
-
-  const { data: preferredCalendar } = useQuery({
-    queryKey: ['google-preferred-calendar'],
-    queryFn: googleApi.getPreferredCalendar,
-    enabled: googleAuthStatus?.isAuthenticated === true,
-  });
-
-  const setPreferredCalendarMutation = useMutation({
-    mutationFn: (calendarId: string | null) => googleApi.setPreferredCalendar(calendarId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['google-preferred-calendar'] });
-    },
-  });
-
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Page Header */}
@@ -117,51 +76,22 @@ export default function SettingsPage() {
           Connect your Google account to create Gmail drafts and calendar reminders for the 3B7 routine.
         </p>
 
-        {googleLoading ? (
-          <p className="text-muted-foreground">Checking connection status...</p>
-        ) : googleAuthStatus?.isAuthenticated ? (
-          <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                <Check className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="font-medium text-green-800">Connected to Google</p>
-                <p className="text-sm text-green-600">
-                  Gmail and Calendar integration active
-                </p>
-              </div>
+        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+              <Mail className="w-5 h-5 text-muted-foreground" />
             </div>
-            <button
-              onClick={() => revokeMutation.mutate()}
-              disabled={revokeMutation.isPending}
-              className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-            >
-              {revokeMutation.isPending ? 'Disconnecting...' : 'Disconnect'}
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
-                <Mail className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="font-medium">Not connected</p>
-                <p className="text-sm text-muted-foreground">
-                  Connect to enable email drafts and calendar reminders
-                </p>
-              </div>
+            <div>
+              <p className="font-medium">Coming Soon</p>
+              <p className="text-sm text-muted-foreground">
+                Google Calendar and Gmail integration is not yet available on the current platform.
+              </p>
             </div>
-            <a
-              href={authUrl?.authUrl}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
-            >
-              Connect Google
-              <ExternalLink className="w-4 h-4" />
-            </a>
           </div>
-        )}
+          <span className="px-4 py-2 bg-muted text-muted-foreground rounded-lg cursor-not-allowed opacity-50">
+            Connect Google
+          </span>
+        </div>
 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <div className="p-4 border border-border rounded-lg">
@@ -184,75 +114,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {googleAuthStatus?.isAuthenticated && (
-          <div className="mt-4 p-4 border border-border rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-4 h-4 text-primary" />
-              <h3 className="font-medium">Preferred Calendar</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Choose which calendar 3B and 7B reminders are created on.
-            </p>
-            {calendarsLoading ? (
-              <p className="text-sm text-muted-foreground">Loading calendars...</p>
-            ) : (
-              <div className="flex items-center gap-3">
-                <select
-                  className="flex-1 px-3 py-2 border border-border rounded-lg bg-background text-sm"
-                  value={preferredCalendar?.calendarId ?? (calendarList?.find(c => c.primary)?.id ?? 'primary')}
-                  onChange={(e) => {
-                    const primaryId = calendarList?.find(c => c.primary)?.id;
-                    const val = e.target.value === primaryId ? null : e.target.value;
-                    setPreferredCalendarMutation.mutate(val);
-                  }}
-                  disabled={setPreferredCalendarMutation.isPending}
-                >
-                  {(calendarList ?? []).map((cal: GoogleCalendar) => (
-                    <option key={cal.id} value={cal.id}>
-                      {cal.name}{cal.primary ? ' (Primary)' : ''}
-                    </option>
-                  ))}
-                </select>
-                {setPreferredCalendarMutation.isSuccess && (
-                  <span className="text-sm text-green-600 flex items-center gap-1">
-                    <Check className="w-4 h-4" /> Saved
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Claude API */}
-      <div className="bg-card rounded-lg border border-border p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Bot className="w-5 h-5" />
-          Claude AI Assistant
-        </h2>
-        <p className="text-muted-foreground mb-4">
-          Configure the Claude API key to enable the AI chat assistant for email drafting and job search advice.
-        </p>
-
-        <div className="p-4 bg-muted/50 rounded-lg">
-          <p className="text-sm text-muted-foreground mb-2">
-            The Claude API key is configured via environment variables for security.
-          </p>
-          <p className="text-sm">
-            Set <code className="bg-muted px-1 rounded">Z_AI_AUTH_TOKEN</code> in your{' '}
-            <code className="bg-muted px-1 rounded">.env</code> file.
-          </p>
-        </div>
-
-        <div className="mt-4 p-4 border border-border rounded-lg">
-          <h3 className="font-medium mb-2">Chat Features</h3>
-          <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Draft and review 6-Point Emails</li>
-            <li>• Get advice on LAMP list prioritization</li>
-            <li>• Generate TIARA questions for informationals</li>
-            <li>• Analyze outreach response patterns</li>
-          </ul>
-        </div>
       </div>
 
       {/* Data Encryption */}

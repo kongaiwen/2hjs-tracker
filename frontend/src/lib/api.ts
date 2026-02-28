@@ -4,7 +4,6 @@ import type {
   Contact,
   Outreach,
   EmailTemplate,
-  ChatMessage,
   TodayReminders,
   OutreachStats,
   CreateEmployerInput,
@@ -46,8 +45,6 @@ function urlToEntityType(url: string): EntityType | null {
   if (/\/api\/informationals/.test(url)) return 'informational';
   if (/\/api\/templates/.test(url)) return 'emailTemplate';
   if (/\/api\/settings/.test(url)) return 'settings';
-  if (/\/api\/claude\/history/.test(url)) return 'chatMessage';
-  if (/\/api\/chat/.test(url)) return 'chatMessage';
   return null;
 }
 
@@ -57,7 +54,6 @@ const NOT_NULL_PLACEHOLDERS: Partial<Record<EntityType, Record<string, any>>> = 
   contact: { name: '[encrypted]' },
   outreach: { subject: '[encrypted]', body: '[encrypted]' },
   emailTemplate: { name: '[encrypted]', subject: '[encrypted]', body: '[encrypted]' },
-  chatMessage: { content: '[encrypted]' },
 };
 
 // ─── Request interceptor: encrypt outgoing data ──────────────────────────────
@@ -134,7 +130,7 @@ api.interceptors.response.use(async (response: AxiosResponse) => {
     // Handle different response shapes per entity type
     // Wrapped single: { employer: {...} }, { contact: {...} }, etc.
     // Wrapped array:  { employers: [...] }, { contacts: [...] }, etc.
-    // Direct array:   [...] (informationals, chat history)
+    // Direct array:   [...] (informationals)
     // Nested:         { threeBReminders: [...], sevenBReminders: [...] } (outreach/today)
 
     if (entityType === 'outreach' && url.includes('/today')) {
@@ -156,7 +152,6 @@ api.interceptors.response.use(async (response: AxiosResponse) => {
         informational: 'informational',
         emailTemplate: 'template',
         settings: 'settings',
-        chatMessage: 'message',
       };
       const pluralKeys: Record<EntityType, string> = {
         employer: 'employers',
@@ -165,7 +160,6 @@ api.interceptors.response.use(async (response: AxiosResponse) => {
         informational: 'informationals',
         emailTemplate: 'templates',
         settings: 'settings',
-        chatMessage: 'messages',
       };
 
       const pluralKey = pluralKeys[entityType];
@@ -304,41 +298,20 @@ export const googleApi = {
   revoke: () => api.post('/api/google/revoke').then((r) => r.data),
 };
 
-// Claude
-export const claudeApi = {
-  chat: (data: { message: string; includeContext?: boolean }) =>
-    api
-      .post<{ message: string; usage: { input_tokens: number; output_tokens: number } }>('/api/claude/chat', data)
-      .then((r) => r.data),
-  getHistory: (limit?: number) =>
-    api.get<ChatMessage[]>('/api/claude/history', { params: { limit } }).then((r) => r.data),
-  clearHistory: () => api.delete('/api/claude/history').then((r) => r.data),
-  reviewEmail: (data: { subject?: string; body: string; contactName?: string; employerName?: string }) =>
-    api
-      .post<{ review: string; wordCount: number; meetsWordLimit: boolean }>('/api/claude/review-email', data)
-      .then((r) => r.data),
-  generateTiaraQuestions: (data: {
-    employerName?: string;
-    contactTitle?: string;
-    industry?: string;
-    yourBackground?: string;
-  }) => api.post<{ questions: unknown }>('/api/claude/tiara-questions', data).then((r) => r.data),
-};
-
 // Informationals
 export const informationalsApi = {
   getAll: (params?: { contactId?: string; employerId?: string; status?: string; from?: string; to?: string }) =>
-    api.get<Informational[]>('/api/informationals', { params }).then((r) => r.data),
+    api.get<{ informationals: Informational[] }>('/api/informationals', { params }).then((r) => r.data.informationals),
   getUpcoming: (days?: number) =>
-    api.get<Informational[]>('/api/informationals/upcoming', { params: { days } }).then((r) => r.data),
+    api.get<{ informationals: Informational[] }>('/api/informationals/upcoming', { params: { days } }).then((r) => r.data.informationals),
   getDigest: () => api.get<InformationalDigest>('/api/informationals/digest').then((r) => r.data),
-  getOne: (id: string) => api.get<Informational>(`/api/informationals/${id}`).then((r) => r.data),
+  getOne: (id: string) => api.get<{ informational: Informational }>(`/api/informationals/${id}`).then((r) => r.data.informational),
   create: (data: CreateInformationalInput) =>
-    api.post<Informational & { calendarHtmlLink?: string }>('/api/informationals', data).then((r) => r.data),
+    api.post<{ informational: Informational & { calendarHtmlLink?: string } }>('/api/informationals', data).then((r) => r.data.informational),
   update: (id: string, data: Partial<CreateInformationalInput> & { bigFourAnswers?: Record<string, string>; updateCalendar?: boolean }) =>
-    api.put<Informational>(`/api/informationals/${id}`, data).then((r) => r.data),
+    api.put<{ informational: Informational }>(`/api/informationals/${id}`, data).then((r) => r.data.informational),
   complete: (id: string, data: CompleteInformationalInput) =>
-    api.post<Informational>(`/api/informationals/${id}/complete`, data).then((r) => r.data),
+    api.post<{ informational: Informational }>(`/api/informationals/${id}/complete`, data).then((r) => r.data.informational),
   delete: (id: string, deleteCalendarEvent?: boolean) =>
     api.delete(`/api/informationals/${id}`, { params: { deleteCalendarEvent } }),
   getAvailability: (date: string, duration?: number) =>

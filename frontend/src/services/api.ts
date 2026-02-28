@@ -104,12 +104,6 @@ export const api = {
   getSettings: () => apiRequest('/settings'),
   updateSettings: (data: any) => apiRequest('/settings', { method: 'PUT', body: data }),
 
-  // Chat
-  getChatMessages: (limit = 50) => apiRequest(`/chat?limit=${limit}`),
-  createChatMessage: (role: string, content: string, metadata?: any) =>
-    apiRequest('/chat', { method: 'POST', body: { role, content, metadata } }),
-  clearChat: () => apiRequest('/chat', { method: 'DELETE' }),
-
   // Admin
   getAdminStats: () => apiRequest('/admin/stats'),
   getAdminUsers: () => apiRequest('/admin/users'),

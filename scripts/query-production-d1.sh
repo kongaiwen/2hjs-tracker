@@ -2,12 +2,12 @@
 # Query production D1 database via the API
 # Requires CF_Authorization cookie
 
-PRODUCTION_URL="https://jobsearch-tracker.kongaiwen.dev"
+PRODUCTION_URL="${PRODUCTION_URL:-https://2hjs-tracker.pages.dev}"
 
 echo "🔍 Querying production D1 database..."
 echo ""
 echo "This requires your CF_Authorization cookie."
-echo "1. Log in to https://jobsearch-tracker.kongaiwen.dev"
+echo "1. Log in to ${PRODUCTION_URL:-https://2hjs-tracker.pages.dev}"
 echo "2. Open DevTools → Application → Cookies"
 echo "3. Copy the CF_Authorization cookie value"
 echo ""

@@ -4,7 +4,7 @@
 echo "🔐 To get your CF_Authorization cookie:"
 echo ""
 echo "1. Open a terminal and run:"
-echo "   firefox https://jobsearch-tracker.kongaiwen.dev"
+echo "   firefox ${PRODUCTION_URL:-https://2hjs-tracker.pages.dev}"
 echo ""
 echo "2. Once logged in, press F12 to open DevTools"
 echo "3. Go to Application → Cookies"
@@ -24,19 +24,19 @@ if [ -n "$COOKIE" ]; then
 
     echo "Employers count:"
     curl -s -H "Cookie: CF_Authorization=$COOKIE" \
-        "https://jobsearch-tracker.kongaiwen.dev/api/employers" | \
+        "${PRODUCTION_URL:-https://2hjs-tracker.pages.dev}/api/employers" | \
         python3 -c "import json,sys; data=json.load(sys.stdin); print(f'   {len(data)} employers')"
 
     echo ""
     echo "Contacts count:"
     curl -s -H "Cookie: CF_Authorization=$COOKIE" \
-        "https://jobsearch-tracker.kongaiwen.dev/api/contacts" | \
+        "${PRODUCTION_URL:-https://2hjs-tracker.pages.dev}/api/contacts" | \
         python3 -c "import json,sys; data=json.load(sys.stdin); print(f'   {len(data)} contacts')"
 
     echo ""
     echo "Templates count:"
     curl -s -H "Cookie: CF_Authorization=$COOKIE" \
-        "https://jobsearch-tracker.kongaiwen.dev/api/templates" | \
+        "${PRODUCTION_URL:-https://2hjs-tracker.pages.dev}/api/templates" | \
         python3 -c "import json,sys; data=json.load(sys.stdin); print(f'   {len(data)} templates')"
 else
     echo "No cookie provided. Run the script again with your cookie."

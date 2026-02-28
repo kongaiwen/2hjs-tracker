@@ -2,7 +2,8 @@ name = "2hjs-tracker"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
-account_id = "REDACTED_ACCOUNT_ID"
+# Set your Cloudflare account_id here or via CLOUDFLARE_ACCOUNT_ID env var
+account_id = ""
 
 # Environment variables (set via wrangler secret or dashboard)
 vars = { DEV_MODE = "false", DEV_EMAIL = "dev@example.com" }
@@ -10,23 +11,23 @@ vars = { DEV_MODE = "false", DEV_EMAIL = "dev@example.com" }
 # Required secrets (set via: wrangler secret put <NAME>):
 # - ADMIN_EMAIL: Your email address for admin access
 
-# Worker will be available at: https://2hjs-tracker.eviemariekolb.workers.dev
+# Worker will be available at: https://2hjs-tracker.<your-subdomain>.workers.dev
 
 # D1 Database binding
 [[d1_databases]]
 binding = "DB"
 database_name = "2hjs-tracker-db"
-database_id = "8099011b-afab-46e2-9308-ddea6363dc4c"
+database_id = ""  # Set via: wrangler d1 create 2hjs-tracker-db
 
 # KV Namespace binding
 [[kv_namespaces]]
 binding = "KV"
-id = "47d8977bfe5f4591a0dee56fc243b030"
+id = ""  # Set via: wrangler kv namespace create KV
 
 [env.production]
 # Optional: Custom domain for API (commented out - using workers.dev URL)
 # routes = [
-#   { pattern = "api.jobsearch.kongaiwen.dev/*", zone_name = "kongaiwen.dev" }
+#   { pattern = "api.your-domain.dev/*", zone_name = "your-domain.dev" }
 #]
 
 [env.development]

@@ -27,7 +27,6 @@ const ENTITY_CONFIGS: Array<{
   { type: 'outreach', endpoint: '/api/outreach', listKey: 'outreach', idKey: 'id' },
   { type: 'informational', endpoint: '/api/informationals', listKey: 'informationals', idKey: 'id' },
   { type: 'emailTemplate', endpoint: '/api/templates', listKey: 'templates', idKey: 'id' },
-  { type: 'chatMessage', endpoint: '/api/chat', listKey: 'messages', idKey: 'id' },
 ];
 
 /**

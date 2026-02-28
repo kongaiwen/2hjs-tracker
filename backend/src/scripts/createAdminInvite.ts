@@ -10,14 +10,14 @@ async function createAdminInvite() {
   const invite = await prisma.invite.create({
     data: {
       token,
-      allowedEmail: 'REDACTED_EMAIL',
+      allowedEmail: process.env.ADMIN_EMAIL || '',
       maxUses: 1,
       expiresAt,
       active: true
     }
   });
 
-  const appUrl = process.env.APP_URL || 'https://jobsearch.kongaiwen.dev';
+  const appUrl = process.env.APP_URL || 'http://localhost:5173';
   console.log(`\nAdmin registration link:\n${appUrl}/auth/register?invite=${token}`);
   console.log(`\nExpires: ${expiresAt.toISOString()}`);
 }

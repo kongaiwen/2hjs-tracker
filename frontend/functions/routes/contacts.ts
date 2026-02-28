@@ -6,6 +6,18 @@ import { Hono } from 'hono';
 
 const app = new Hono();
 
+// D1 returns booleans as 0/1 integers; normalize to proper booleans
+function normalizeContact(row: any) {
+  if (!row) return row;
+  return {
+    ...row,
+    isFunctionallyRelevant: !!row.isFunctionallyRelevant,
+    isAlumni: !!row.isAlumni,
+    isInternallyPromoted: !!row.isInternallyPromoted,
+    hasUniqueName: !!row.hasUniqueName,
+  };
+}
+
 app.get('/', async (c) => {
   const userId = c.get('userId');
   const employerId = c.req.query('employerId');
@@ -27,14 +39,13 @@ app.get('/', async (c) => {
 
   const contacts = await c.env.DB.prepare(query).bind(...params).all();
 
-  // Map results to include employer object
-  const mappedContacts = contacts.results.map((row: any) => ({
+  // Map results to include employer object and normalize booleans
+  const mappedContacts = contacts.results.map((row: any) => normalizeContact({
     ...row,
     employer: row._employerId ? {
       id: row._employerId,
       name: row._employerName
     } : null,
-    // Clean up temporary columns
     _employerId: undefined,
     _employerName: undefined
   }));
@@ -57,7 +68,7 @@ app.get('/:id', async (c) => {
     return c.json({ error: 'Contact not found' }, 404);
   }
 
-  const contact = {
+  const contact = normalizeContact({
     ...row,
     employer: row._employerId ? {
       id: row._employerId,
@@ -65,7 +76,7 @@ app.get('/:id', async (c) => {
     } : null,
     _employerId: undefined,
     _employerName: undefined
-  };
+  });
 
   return c.json({ contact });
 });
@@ -98,7 +109,7 @@ app.post('/', async (c) => {
   ).run();
 
   const contact = await c.env.DB.prepare('SELECT * FROM Contact WHERE id = ?').bind(id).first();
-  return c.json({ contact }, 201);
+  return c.json({ contact: normalizeContact(contact) }, 201);
 });
 
 app.put('/:id', async (c) => {
@@ -138,7 +149,7 @@ app.put('/:id', async (c) => {
     .bind(...values).run();
 
   const contact = await c.env.DB.prepare('SELECT * FROM Contact WHERE id = ?').bind(id).first();
-  return c.json({ contact });
+  return c.json({ contact: normalizeContact(contact) });
 });
 
 app.delete('/:id', async (c) => {

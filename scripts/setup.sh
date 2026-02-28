@@ -5,7 +5,7 @@
 
 set -e
 
-PROJECT_DIR="/home/evie-marie/Projects/2hjs-tracker"
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SERVICE_FILE="$PROJECT_DIR/scripts/2hjs-tracker.service"
 
 echo "=========================================="

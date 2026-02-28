@@ -24,6 +24,17 @@ const employerSchema = z.object({
 
 const app = new Hono();
 
+// D1 returns booleans as 0/1 integers; normalize to proper booleans
+function normalizeEmployer(row: any) {
+  if (!row) return row;
+  return {
+    ...row,
+    advocacy: !!row.advocacy,
+    isNetworkOrg: !!row.isNetworkOrg,
+    isLocked: !!row.isLocked,
+  };
+}
+
 // Get all employers
 app.get('/', async (c) => {
   const userId = c.get('userId');
@@ -32,7 +43,7 @@ app.get('/', async (c) => {
     'SELECT * FROM Employer WHERE userId = ? ORDER BY displayOrder ASC, createdAt DESC'
   ).bind(userId).all();
 
-  return c.json({ employers: employers.results });
+  return c.json({ employers: employers.results.map(normalizeEmployer) });
 });
 
 // Get top 5 employers by LAMP score
@@ -45,7 +56,7 @@ app.get('/top/five', async (c) => {
     LIMIT 5
   `).bind(userId).all();
 
-  return c.json({ employers: employers.results });
+  return c.json({ employers: employers.results.map(normalizeEmployer) });
 });
 
 // Get single employer
@@ -61,7 +72,7 @@ app.get('/:id', async (c) => {
     return c.json({ error: 'Employer not found' }, 404);
   }
 
-  return c.json({ employer });
+  return c.json({ employer: normalizeEmployer(employer) });
 });
 
 // Create employer
@@ -98,7 +109,7 @@ app.post('/', async (c) => {
       'SELECT * FROM Employer WHERE id = ?'
     ).bind(id).first();
 
-    return c.json({ employer }, 201);
+    return c.json({ employer: normalizeEmployer(employer) }, 201);
   } catch (error) {
     if (error instanceof Error) {
       return c.json({ error: error.message }, 400);
@@ -185,7 +196,7 @@ app.put('/:id', async (c) => {
       'SELECT * FROM Employer WHERE id = ?'
     ).bind(id).first();
 
-    return c.json({ employer });
+    return c.json({ employer: normalizeEmployer(employer) });
   } catch (error) {
     if (error instanceof Error) {
       return c.json({ error: error.message }, 400);
@@ -238,7 +249,7 @@ app.patch('/:id/lock', async (c) => {
       'SELECT * FROM Employer WHERE id = ?'
     ).bind(id).first();
 
-    return c.json({ employer, success: true });
+    return c.json({ employer: normalizeEmployer(employer), success: true });
   } catch (error) {
     if (error instanceof Error) {
       return c.json({ error: error.message }, 400);

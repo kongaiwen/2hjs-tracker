@@ -77,6 +77,41 @@ app.get('/digest', async (c) => {
   });
 });
 
+// Get upcoming informationals
+app.get('/upcoming', async (c) => {
+  const userId = c.get('userId');
+  const days = parseInt(c.req.query('days') || '14');
+  const now = new Date();
+  const future = new Date(now);
+  future.setDate(now.getDate() + days);
+  const today = now.toISOString().split('T')[0];
+  const futureDate = future.toISOString().split('T')[0];
+
+  const informationals = await c.env.DB.prepare(`
+    SELECT * FROM Informational
+    WHERE userId = ? AND scheduledAt >= ? AND scheduledAt <= ? AND completedAt IS NULL
+    ORDER BY scheduledAt ASC
+  `).bind(userId, today, futureDate + 'T23:59:59').all();
+
+  return c.json({ informationals: informationals.results });
+});
+
+// Get single informational
+app.get('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  const informational = await c.env.DB.prepare(
+    'SELECT * FROM Informational WHERE id = ? AND userId = ?'
+  ).bind(id, userId).first();
+
+  if (!informational) {
+    return c.json({ error: 'Informational not found' }, 404);
+  }
+
+  return c.json({ informational });
+});
+
 app.post('/', async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
@@ -95,6 +130,119 @@ app.post('/', async (c) => {
 
   const informational = await c.env.DB.prepare('SELECT * FROM Informational WHERE id = ?').bind(id).first();
   return c.json({ informational }, 201);
+});
+
+// Update informational
+app.put('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM Informational WHERE id = ? AND userId = ?'
+  ).bind(id, userId).first();
+
+  if (!existing) {
+    return c.json({ error: 'Informational not found' }, 404);
+  }
+
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  const allowedFields = [
+    'contactId', 'scheduledAt', 'duration', 'method',
+    'researchNotes', 'bigFourAnswers', 'tiaraQuestions',
+    'completedAt', 'outcome', 'referralName', 'referralContact',
+    'nextSteps', 'calendarEventId', 'encryptedData',
+  ];
+
+  for (const field of allowedFields) {
+    if (body[field] !== undefined) {
+      updates.push(`${field} = ?`);
+      values.push(body[field]);
+    }
+  }
+
+  if (updates.length === 0) {
+    return c.json({ error: 'No fields to update' }, 400);
+  }
+
+  updates.push("updatedAt = datetime('now')");
+  values.push(id, userId);
+
+  await c.env.DB.prepare(`
+    UPDATE Informational SET ${updates.join(', ')} WHERE id = ? AND userId = ?
+  `).bind(...values).run();
+
+  const informational = await c.env.DB.prepare('SELECT * FROM Informational WHERE id = ?').bind(id).first();
+  return c.json({ informational });
+});
+
+// Complete informational
+app.post('/:id/complete', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM Informational WHERE id = ? AND userId = ?'
+  ).bind(id, userId).first();
+
+  if (!existing) {
+    return c.json({ error: 'Informational not found' }, 404);
+  }
+
+  const updates: string[] = [
+    "completedAt = datetime('now')",
+    "updatedAt = datetime('now')",
+  ];
+  const values: any[] = [];
+
+  if (body.outcome) {
+    updates.push('outcome = ?');
+    values.push(body.outcome);
+  }
+  if (body.referralName !== undefined) {
+    updates.push('referralName = ?');
+    values.push(body.referralName);
+  }
+  if (body.referralContact !== undefined) {
+    updates.push('referralContact = ?');
+    values.push(body.referralContact);
+  }
+  if (body.nextSteps !== undefined) {
+    updates.push('nextSteps = ?');
+    values.push(body.nextSteps);
+  }
+  if (body.encryptedData !== undefined) {
+    updates.push('encryptedData = ?');
+    values.push(body.encryptedData);
+  }
+
+  values.push(id, userId);
+
+  await c.env.DB.prepare(`
+    UPDATE Informational SET ${updates.join(', ')} WHERE id = ? AND userId = ?
+  `).bind(...values).run();
+
+  const informational = await c.env.DB.prepare('SELECT * FROM Informational WHERE id = ?').bind(id).first();
+  return c.json({ informational });
+});
+
+// Delete informational
+app.delete('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  const result = await c.env.DB.prepare(
+    'DELETE FROM Informational WHERE id = ? AND userId = ?'
+  ).bind(id, userId).run();
+
+  if (!result.success || result.meta.changes === 0) {
+    return c.json({ error: 'Informational not found' }, 404);
+  }
+
+  return c.json({ success: true });
 });
 
 export default app;

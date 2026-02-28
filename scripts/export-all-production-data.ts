@@ -5,7 +5,7 @@
 
 import https from 'https';
 
-const PRODUCTION_URL = 'https://jobsearch-tracker.kongaiwen.dev';
+const PRODUCTION_URL = process.env.PRODUCTION_URL || 'https://2hjs-tracker.pages.dev';
 
 async function fetchFromProduction(endpoint: string, cookie: string): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -67,7 +67,8 @@ async function exportAllData(cookie: string) {
   };
 
   const fs = await import('fs');
-  const outputFile = '/home/evie-marie/Projects/2hjs-tracker/exports/production-data.json';
+  const path = await import('path');
+  const outputFile = path.join(process.cwd(), 'exports', 'production-data.json');
   fs.writeFileSync(outputFile, JSON.stringify(data, null, 2));
 
   console.log(`💾 Saved to: ${outputFile}`);
@@ -92,7 +93,7 @@ async function main() {
     console.log('❌ CF_Authorization cookie required\n');
     console.log('Usage: npx tsx scripts/export-all-production-data.ts <cookie>\n');
     console.log('Steps:');
-    console.log('1. Log in to https://jobsearch-tracker.kongaiwen.dev');
+    console.log(`1. Log in to ${PRODUCTION_URL}`);
     console.log('2. Open DevTools → Application → Cookies');
     console.log('3. Copy CF_Authorization value');
     console.log('4. Run this script with that value');

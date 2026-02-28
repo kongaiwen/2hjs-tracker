@@ -133,17 +133,6 @@ export interface EmailTemplate {
   updatedAt: string;
 }
 
-// Chat types
-export type ChatRole = 'USER' | 'ASSISTANT' | 'SYSTEM';
-
-export interface ChatMessage {
-  id: string;
-  role: ChatRole;
-  content: string;
-  metadata?: Record<string, unknown>;
-  createdAt: string;
-}
-
 // Dashboard types
 export interface TodayReminders {
   threeBReminders: Outreach[];

@@ -3,7 +3,11 @@ import { nanoid } from 'nanoid';
 
 const prisma = new PrismaClient();
 
-const ADMIN_EMAIL = 'REDACTED_EMAIL';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+if (!ADMIN_EMAIL) {
+  console.error('ADMIN_EMAIL environment variable is required');
+  process.exit(1);
+}
 
 async function migrateToAdmin() {
   console.log('Starting migration to admin user...');

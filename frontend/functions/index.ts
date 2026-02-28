@@ -21,7 +21,6 @@ import outreachRoutes from './routes/outreach';
 import informationalRoutes from './routes/informationals';
 import templateRoutes from './routes/templates';
 import settingsRoutes from './routes/settings';
-import chatRoutes from './routes/chat';
 import adminRoutes from './routes/admin';
 
 // Types for Cloudflare bindings
@@ -71,7 +70,6 @@ app.route('/outreach', outreachRoutes);
 app.route('/informationals', informationalRoutes);
 app.route('/templates', templateRoutes);
 app.route('/settings', settingsRoutes);
-app.route('/chat', chatRoutes);
 app.route('/admin', adminRoutes);
 
 // 404 handler

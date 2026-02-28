@@ -14,8 +14,8 @@
 import fs from 'fs';
 import https from 'https';
 
-const SQL_FILE = process.argv[2] || '/home/evie-marie/2hjs-backup.sql';
-const PRODUCTION_URL = 'https://jobsearch-tracker.kongaiwen.dev';
+const SQL_FILE = process.argv[2] || './backup.sql';
+const PRODUCTION_URL = process.env.PRODUCTION_URL || 'https://2hjs-tracker.pages.dev';
 
 /**
  * Parse PostgreSQL INSERT statement and extract column names and values
@@ -195,13 +195,14 @@ async function main() {
 
   // Get CF_Authorization cookie
   console.log('🔐 To import to production, you need your CF_Authorization cookie.');
-  console.log('   1. Log in to https://jobsearch-tracker.kongaiwen.dev');
+  console.log('   1. Log in to ${PRODUCTION_URL}');
   console.log('   2. Open browser DevTools → Application → Cookies');
   console.log('   3. Find the CF_Authorization cookie value');
   console.log('');
 
   // For now, just output the JSON to a file for manual import
-  const exportDir = '/home/evie-marie/Projects/2hjs-tracker/exports';
+  const path = await import('path');
+  const exportDir = path.join(process.cwd(), 'exports');
   if (!fs.existsSync(exportDir)) {
     fs.mkdirSync(exportDir, { recursive: true });
   }
@@ -218,7 +219,7 @@ async function main() {
   fs.writeFileSync(outputFile, JSON.stringify(payload, null, 2));
   console.log(`✅ Data exported to: ${outputFile}`);
   console.log('\n📝 Next steps:');
-  console.log('   Option 1: Use the web interface at https://jobsearch-tracker.kongaiwen.dev/debug');
+  console.log('   Option 1: Use the web interface at ${PRODUCTION_URL}/debug');
   console.log('   Option 2: Run this script with CF_Authorization cookie:');
   console.log(`            tsx scripts/parse-sql-and-import.ts "${SQL_FILE}" "<your-cookie>"`);
   console.log('   Option 3: Use curl:');

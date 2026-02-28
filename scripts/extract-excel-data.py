@@ -48,7 +48,8 @@ def extract_excel_data(filepath):
     return data
 
 if __name__ == '__main__':
-    excel_file = '/home/evie-marie/Documents/Spreadsheets/LAMP_List_2026.xlsx'
+    import os
+    excel_file = os.environ.get('LAMP_EXCEL_FILE', './LAMP_List_2026.xlsx')
 
     print(f"📂 Reading: {excel_file}\n")
     data = extract_excel_data(excel_file)
@@ -63,7 +64,7 @@ if __name__ == '__main__':
         print()
 
     # Save to JSON
-    output_file = '/home/evie-marie/Projects/2hjs-tracker/exports/lamp-excel-data.json'
+    output_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'exports', 'lamp-excel-data.json')
     with open(output_file, 'w') as f:
         json.dump(data, f, indent=2, default=str)
 

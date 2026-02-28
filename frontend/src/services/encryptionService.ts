@@ -10,8 +10,7 @@ export type EntityType =
   | 'outreach'
   | 'informational'
   | 'emailTemplate'
-  | 'settings'
-  | 'chatMessage';
+  | 'settings';
 
 // Fields that contain PII and should be encrypted per entity type
 const SENSITIVE_FIELDS: Record<EntityType, string[]> = {
@@ -27,7 +26,6 @@ const SENSITIVE_FIELDS: Record<EntityType, string[]> = {
     'googleAccessToken', 'googleRefreshToken', 'claudeApiKey',
     'defaultTimezone', 'workdayStart', 'workdayEnd', 'preferredCalendarId',
   ],
-  chatMessage: ['content', 'metadata'],
 };
 
 // Cached CryptoKey objects to avoid repeated PEM imports

@@ -2,8 +2,8 @@
 # Parse PostgreSQL SQL backup and prepare JSON for import to production
 # Usage: ./scripts/parse-sql-for-import.sh [sql-file]
 
-SQL_FILE="${1:-/home/evie-marie/2hjs-backup.sql}"
-EXPORT_DIR="/home/evie-marie/Projects/2hjs-tracker/exports"
+SQL_FILE="${1:-./backup.sql}"
+EXPORT_DIR="$(cd "$(dirname "$0")" && pwd)/../exports"
 OUTPUT_FILE="$EXPORT_DIR/import-data.json"
 
 mkdir -p "$EXPORT_DIR"
@@ -131,13 +131,13 @@ rm /tmp/parse-sql.js
 echo ""
 echo "📝 To import this data to production:"
 echo ""
-echo "   1. Log in to https://jobsearch-tracker.kongaiwen.dev"
+echo "   1. Log in to ${PRODUCTION_URL:-https://2hjs-tracker.pages.dev}"
 echo "   2. Open browser DevTools → Application → Cookies"
 echo "   3. Copy the CF_Authorization cookie value"
 echo ""
 echo "   Then run:"
 echo ""
-echo "   curl -X POST https://jobsearch-tracker.kongaiwen.dev/api/debug/import-backup \\"
+echo "   curl -X POST ${PRODUCTION_URL:-https://2hjs-tracker.pages.dev}/api/debug/import-backup \\"
 echo "     -H 'Content-Type: application/json' \\"
 echo "     -H 'Cookie: CF_Authorization=<YOUR_COOKIE_HERE>' \\"
 echo "     -d @$OUTPUT_FILE"

@@ -150,4 +150,139 @@ app.post('/', async (c) => {
   return c.json({ outreach }, 201);
 });
 
+// Get single outreach
+app.get('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  const outreach = await c.env.DB.prepare(
+    'SELECT * FROM Outreach WHERE id = ? AND userId = ?'
+  ).bind(id, userId).first();
+
+  if (!outreach) {
+    return c.json({ error: 'Outreach not found' }, 404);
+  }
+
+  return c.json({ outreach });
+});
+
+// Record response to outreach
+app.post('/:id/response', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+
+  const existing = await c.env.DB.prepare(
+    'SELECT * FROM Outreach WHERE id = ? AND userId = ?'
+  ).bind(id, userId).first() as any;
+
+  if (!existing) {
+    return c.json({ error: 'Outreach not found' }, 404);
+  }
+
+  await c.env.DB.prepare(`
+    UPDATE Outreach SET responseAt = ?, responseType = ?, status = 'RESPONDED',
+                        updatedAt = datetime('now')
+    WHERE id = ? AND userId = ?
+  `).bind(body.responseAt, body.responseType, id, userId).run();
+
+  // Determine segment based on response type
+  const isBooster = body.responseType === 'POSITIVE' || body.responseType === 'REFERRAL_ONLY';
+  const segment = isBooster ? 'BOOSTER' : body.responseType === 'NEGATIVE' ? 'CURMUDGEON' : 'OBLIGATE';
+
+  // Update contact segment if contactId exists
+  if (existing.contactId) {
+    await c.env.DB.prepare(`
+      UPDATE Contact SET segment = ?, updatedAt = datetime('now') WHERE id = ?
+    `).bind(segment, existing.contactId).run();
+  }
+
+  const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
+  return c.json({ outreach, segment, isBooster });
+});
+
+// Record follow-up
+app.post('/:id/follow-up', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM Outreach WHERE id = ? AND userId = ?'
+  ).bind(id, userId).first();
+
+  if (!existing) {
+    return c.json({ error: 'Outreach not found' }, 404);
+  }
+
+  await c.env.DB.prepare(`
+    UPDATE Outreach SET followUpSentAt = datetime('now'), followUpBody = ?,
+                        status = 'AWAITING_7B', updatedAt = datetime('now')
+    WHERE id = ? AND userId = ?
+  `).bind(body.body || null, id, userId).run();
+
+  const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
+  return c.json({ outreach });
+});
+
+// Mark as moved on (3B expired, try another contact)
+app.post('/:id/move-on', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM Outreach WHERE id = ? AND userId = ?'
+  ).bind(id, userId).first();
+
+  if (!existing) {
+    return c.json({ error: 'Outreach not found' }, 404);
+  }
+
+  await c.env.DB.prepare(`
+    UPDATE Outreach SET status = 'MOVED_ON', updatedAt = datetime('now')
+    WHERE id = ? AND userId = ?
+  `).bind(id, userId).run();
+
+  const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
+  return c.json({ outreach });
+});
+
+// Mark as no response (7B expired)
+app.post('/:id/no-response', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM Outreach WHERE id = ? AND userId = ?'
+  ).bind(id, userId).first();
+
+  if (!existing) {
+    return c.json({ error: 'Outreach not found' }, 404);
+  }
+
+  await c.env.DB.prepare(`
+    UPDATE Outreach SET status = 'NO_RESPONSE', updatedAt = datetime('now')
+    WHERE id = ? AND userId = ?
+  `).bind(id, userId).run();
+
+  const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
+  return c.json({ outreach });
+});
+
+// Delete outreach
+app.delete('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  const result = await c.env.DB.prepare(
+    'DELETE FROM Outreach WHERE id = ? AND userId = ?'
+  ).bind(id, userId).run();
+
+  if (!result.success || result.meta.changes === 0) {
+    return c.json({ error: 'Outreach not found' }, 404);
+  }
+
+  return c.json({ success: true });
+});
+
 export default app;

@@ -14,7 +14,6 @@ import outreachRoutes from './routes/outreach';
 import templatesRoutes from './routes/templates';
 import informationalsRoutes from './routes/informationals';
 import settingsRoutes from './routes/settings';
-import chatRoutes from './routes/chat';
 import bulkRoutes from './routes/bulk';
 
 const app = new Hono();
@@ -46,7 +45,6 @@ app.route('/api/outreach', outreachRoutes);
 app.route('/api/templates', templatesRoutes);
 app.route('/api/informationals', informationalsRoutes);
 app.route('/api/settings', settingsRoutes);
-app.route('/api/chat', chatRoutes);
 app.route('/api/bulk', bulkRoutes);
 
 // IMPORTANT: Do NOT add a catch-all route here
