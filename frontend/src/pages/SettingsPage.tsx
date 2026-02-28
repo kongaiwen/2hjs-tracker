@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Mail, Calendar, Check, X, Shield, Lock } from 'lucide-react';
+import { Mail, Calendar, Check, X, Shield, Lock, Key, Download } from 'lucide-react';
 import { hasEncryptionKeys } from '@/services/encryptionService';
 import { migrateToEncrypted, getEncryptionStatus } from '@/services/dataMigration';
+import { CryptoService } from '@/services/cryptoService';
+import { KeyManager } from '@/services/keyManager';
+import { authApi } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function SettingsPage() {
   const [searchParams] = useSearchParams();
   const googleStatus = searchParams.get('google');
+  const user = useAuthStore((s) => s.user);
+  const updateUser = useAuthStore((s) => s.updateUser);
 
   // ── Data Encryption state ──────────────────────────────────────────────────
   const [keysAvailable, setKeysAvailable] = useState(false);
@@ -17,6 +23,18 @@ export default function SettingsPage() {
   const [migrationProgress, setMigrationProgress] = useState<Array<{
     entityType: string; total: number; encrypted: number; failed: number;
   }>>([]);
+
+  // ── Key Sync state ────────────────────────────────────────────────────────
+  const [showPassphraseForm, setShowPassphraseForm] = useState(false);
+  const [currentPassphrase, setCurrentPassphrase] = useState('');
+  const [newPassphrase, setNewPassphrase] = useState('');
+  const [confirmPassphrase, setConfirmPassphrase] = useState('');
+  const [keySyncError, setKeySyncError] = useState('');
+  const [keySyncSuccess, setKeySyncSuccess] = useState('');
+  const [savingPassphrase, setSavingPassphrase] = useState(false);
+
+  const crypto = new CryptoService();
+  const keyManager = new KeyManager();
 
   useEffect(() => {
     hasEncryptionKeys().then(setKeysAvailable);
@@ -34,13 +52,80 @@ export default function SettingsPage() {
       await migrateToEncrypted((progress) => {
         setMigrationProgress([...progress]);
       });
-      // Refresh status after migration
       const status = await getEncryptionStatus();
       setEncryptionStatus(status);
     } finally {
       setMigrating(false);
     }
   };
+
+  const handleDownloadKeys = async () => {
+    const keys = await keyManager.getKeys();
+    if (keys) {
+      keyManager.downloadKeys(keys);
+    }
+  };
+
+  const handleSetPassphrase = async () => {
+    setKeySyncError('');
+    setKeySyncSuccess('');
+
+    if (newPassphrase.length < 12) {
+      setKeySyncError('Passphrase must be at least 12 characters.');
+      return;
+    }
+    if (newPassphrase !== confirmPassphrase) {
+      setKeySyncError('Passphrases do not match.');
+      return;
+    }
+
+    // If updating existing passphrase, verify old one first
+    if (user?.hasWrappedKey && !currentPassphrase) {
+      setKeySyncError('Please enter your current passphrase to verify.');
+      return;
+    }
+
+    setSavingPassphrase(true);
+    try {
+      // Verify current passphrase if updating
+      if (user?.hasWrappedKey) {
+        const { wrappedPrivateKey } = await authApi.getWrappedKey();
+        if (wrappedPrivateKey) {
+          try {
+            const wrapped = JSON.parse(wrappedPrivateKey);
+            await crypto.unwrapPrivateKey(wrapped, currentPassphrase);
+          } catch {
+            setKeySyncError('Current passphrase is incorrect.');
+            setSavingPassphrase(false);
+            return;
+          }
+        }
+      }
+
+      const keys = await keyManager.getKeys();
+      if (!keys) {
+        setKeySyncError('No encryption keys found in this browser.');
+        setSavingPassphrase(false);
+        return;
+      }
+
+      const wrapped = await crypto.wrapPrivateKey(keys.privateKey, newPassphrase);
+      await authApi.updateWrappedKey(JSON.stringify(wrapped));
+      updateUser({ hasWrappedKey: true });
+
+      setKeySyncSuccess('Recovery passphrase saved successfully.');
+      setShowPassphraseForm(false);
+      setCurrentPassphrase('');
+      setNewPassphrase('');
+      setConfirmPassphrase('');
+    } catch (err: any) {
+      setKeySyncError(err.response?.data?.error || 'Failed to save passphrase.');
+    } finally {
+      setSavingPassphrase(false);
+    }
+  };
+
+  const fingerprint = user?.keyFingerprint;
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -171,6 +256,147 @@ export default function SettingsPage() {
             <Lock className="w-4 h-4" />
             {migrating ? 'Encrypting...' : 'Encrypt All Data'}
           </button>
+        </div>
+      )}
+
+      {/* Key Sync */}
+      {keysAvailable && (
+        <div className="bg-card rounded-lg border border-border p-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Key className="w-5 h-5" />
+            Key Sync
+          </h2>
+          <p className="text-muted-foreground mb-4">
+            Manage your recovery passphrase and key file for accessing encrypted data on other devices.
+          </p>
+
+          {keySyncError && (
+            <div className="bg-red-50 border border-red-200 rounded p-3 mb-4">
+              <p className="text-sm text-red-700">{keySyncError}</p>
+            </div>
+          )}
+          {keySyncSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded p-3 mb-4">
+              <p className="text-sm text-green-700">{keySyncSuccess}</p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {/* Status */}
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <div>
+                <p className="text-sm font-medium">Recovery passphrase</p>
+                <p className="text-xs text-muted-foreground">
+                  {user?.hasWrappedKey
+                    ? 'Set — you can restore your keys on other devices using your passphrase'
+                    : 'Not set — you can only restore from the key file'}
+                </p>
+              </div>
+              <span className={`text-xs font-medium px-2 py-1 rounded ${
+                user?.hasWrappedKey
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {user?.hasWrappedKey ? 'Set' : 'Not set'}
+              </span>
+            </div>
+
+            {/* Fingerprint */}
+            {fingerprint && (
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium">Key fingerprint</p>
+                  <code className="text-xs text-muted-foreground">{fingerprint}</code>
+                </div>
+              </div>
+            )}
+
+            {/* Passphrase form */}
+            {showPassphraseForm ? (
+              <div className="border border-border rounded-lg p-4 space-y-3">
+                {user?.hasWrappedKey && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Current Passphrase</label>
+                    <input
+                      type="password"
+                      value={currentPassphrase}
+                      onChange={(e) => { setCurrentPassphrase(e.target.value); setKeySyncError(''); }}
+                      placeholder="Enter current passphrase"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {user?.hasWrappedKey ? 'New Passphrase' : 'Passphrase'}
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassphrase}
+                    onChange={(e) => { setNewPassphrase(e.target.value); setKeySyncError(''); }}
+                    placeholder="At least 12 characters"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {newPassphrase.length > 0 && newPassphrase.length < 12 && (
+                    <p className="text-xs text-red-500 mt-1">Must be at least 12 characters</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Confirm Passphrase</label>
+                  <input
+                    type="password"
+                    value={confirmPassphrase}
+                    onChange={(e) => { setConfirmPassphrase(e.target.value); setKeySyncError(''); }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSetPassphrase()}
+                    placeholder="Re-enter passphrase"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {confirmPassphrase && newPassphrase !== confirmPassphrase && (
+                    <p className="text-xs text-red-500 mt-1">Passphrases do not match</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setShowPassphraseForm(false);
+                      setCurrentPassphrase('');
+                      setNewPassphrase('');
+                      setConfirmPassphrase('');
+                      setKeySyncError('');
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSetPassphrase}
+                    disabled={savingPassphrase || newPassphrase.length < 12 || newPassphrase !== confirmPassphrase}
+                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {savingPassphrase ? 'Saving...' : (user?.hasWrappedKey ? 'Update Passphrase' : 'Set Passphrase')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowPassphraseForm(true); setKeySyncSuccess(''); setKeySyncError(''); }}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90"
+                >
+                  <Key className="w-4 h-4" />
+                  {user?.hasWrappedKey ? 'Update Passphrase' : 'Set Passphrase'}
+                </button>
+
+                <button
+                  onClick={handleDownloadKeys}
+                  className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted/50"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Key File
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

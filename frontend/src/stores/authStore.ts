@@ -18,6 +18,7 @@ interface User {
   publicKey: string | null;
   keyFingerprint: string | null;
   hasEncryptionKeys: boolean;
+  hasWrappedKey: boolean;
   dataVersion: number;
   storageUsed: number;
   requestCount: number;

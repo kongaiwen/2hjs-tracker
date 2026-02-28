@@ -82,6 +82,33 @@ export class KeyManager {
     });
   }
 
+  // Import keys from a JSON file (File picker result)
+  async importFromFile(file: File): Promise<ExportedKeyPair> {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+
+    if (!parsed.publicKey || !parsed.privateKey) {
+      throw new Error('Invalid key file: missing publicKey or privateKey');
+    }
+
+    // Validate that both are PEM-formatted strings
+    if (!parsed.publicKey.includes('BEGIN PUBLIC KEY') || !parsed.privateKey.includes('BEGIN PRIVATE KEY')) {
+      throw new Error('Invalid key file: keys are not in PEM format');
+    }
+
+    // Verify the keys are importable
+    await crypto.importPublicKey(parsed.publicKey);
+    await crypto.importPrivateKey(parsed.privateKey);
+
+    const keys: ExportedKeyPair = {
+      publicKey: parsed.publicKey,
+      privateKey: parsed.privateKey,
+    };
+
+    await this.storeKeys(keys);
+    return keys;
+  }
+
   // Download keys as JSON file
   downloadKeys(keys: ExportedKeyPair): void {
     const blob = new Blob([JSON.stringify(keys, null, 2)], { type: 'application/json' });

@@ -23,6 +23,13 @@ export interface HybridEncryptedData {
   ct: string;         // base64 AES-GCM ciphertext
 }
 
+export interface WrappedKeyData {
+  v: 1;
+  salt: string;   // base64, 16 bytes
+  iv: string;     // base64, 12 bytes
+  ct: string;     // base64, AES-GCM ciphertext of private key PEM
+}
+
 export class CryptoService {
   // Generate RSA-OAEP key pair for asymmetric encryption
   async generateKeyPair(): Promise<KeyPair> {
@@ -190,6 +197,69 @@ export class CryptoService {
 
     const decoder = new TextDecoder();
     return JSON.parse(decoder.decode(decrypted));
+  }
+
+  // Derive an AES-256 wrapping key from a passphrase using PBKDF2
+  async deriveWrappingKey(passphrase: string, salt: Uint8Array): Promise<CryptoKey> {
+    const encoder = new TextEncoder();
+    const keyMaterial = await window.crypto.subtle.importKey(
+      'raw',
+      encoder.encode(passphrase),
+      'PBKDF2',
+      false,
+      ['deriveKey']
+    );
+
+    return await window.crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: salt as BufferSource,
+        iterations: 600_000,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  // Wrap a private key PEM with a user-chosen passphrase
+  async wrapPrivateKey(privateKeyPEM: string, passphrase: string): Promise<WrappedKeyData> {
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const wrappingKey = await this.deriveWrappingKey(passphrase, salt);
+
+    const encoder = new TextEncoder();
+    const ciphertext = await window.crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      wrappingKey,
+      encoder.encode(privateKeyPEM)
+    );
+
+    return {
+      v: 1,
+      salt: this.arrayBufferToBase64(salt),
+      iv: this.arrayBufferToBase64(iv),
+      ct: this.arrayBufferToBase64(ciphertext),
+    };
+  }
+
+  // Unwrap a private key PEM from the passphrase-wrapped payload
+  async unwrapPrivateKey(wrapped: WrappedKeyData, passphrase: string): Promise<string> {
+    const salt = new Uint8Array(this.base64ToArrayBuffer(wrapped.salt));
+    const iv = new Uint8Array(this.base64ToArrayBuffer(wrapped.iv));
+    const ct = this.base64ToArrayBuffer(wrapped.ct);
+
+    const wrappingKey = await this.deriveWrappingKey(passphrase, salt);
+
+    const decrypted = await window.crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      wrappingKey,
+      ct
+    );
+
+    return new TextDecoder().decode(decrypted);
   }
 
   private arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {

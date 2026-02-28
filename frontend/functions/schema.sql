@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS User (
   publicKey TEXT,  -- User's public key for verification
   keyFingerprint TEXT,  -- For device recognition
   keyCreatedAt TEXT,
+  wrappedPrivateKey TEXT,  -- Passphrase-wrapped private key blob (opaque ciphertext)
 
   -- E2E encrypted data blob
   encryptedData TEXT,  -- E2E encrypted JSON containing all user data
@@ -294,6 +295,9 @@ CREATE INDEX idx_usageMetrics_timestamp ON UsageMetrics(timestamp);
 -- Migration: Add displayOrder and isLocked to Employer table
 -- ALTER TABLE Employer ADD COLUMN displayOrder INTEGER DEFAULT 0;
 -- ALTER TABLE Employer ADD COLUMN isLocked INTEGER DEFAULT 0;
+
+-- Migration: Add wrappedPrivateKey column for cross-device key sync
+-- ALTER TABLE User ADD COLUMN wrappedPrivateKey TEXT;
 
 -- Migration: Add encryptedData column for E2E encryption
 -- ALTER TABLE Employer ADD COLUMN encryptedData TEXT;

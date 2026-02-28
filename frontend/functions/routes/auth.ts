@@ -18,7 +18,7 @@ app.get('/me', async (c) => {
 
   // Get full user record from database
   const user = await c.env.DB.prepare(
-    'SELECT id, email, tenantId, role, publicKey, keyFingerprint, encryptedData, dataVersion, storageUsed, requestCount, createdAt FROM User WHERE id = ?'
+    'SELECT id, email, tenantId, role, publicKey, keyFingerprint, wrappedPrivateKey, encryptedData, dataVersion, storageUsed, requestCount, createdAt FROM User WHERE id = ?'
   ).bind(userId).first();
 
   if (!user) {
@@ -31,6 +31,8 @@ app.get('/me', async (c) => {
     tenantId: user.tenantId,
     role: user.role,
     hasEncryptionKeys: !!user.publicKey,
+    hasWrappedKey: !!user.wrappedPrivateKey,
+    publicKey: user.publicKey || null,
     keyFingerprint: user.keyFingerprint,
     encryptedData: user.encryptedData,
     dataVersion: user.dataVersion,
@@ -45,29 +47,62 @@ app.put('/keys', async (c) => {
   const userId = c.get('userId');
 
   const body = await c.req.json();
-  const { publicKey, keyFingerprint, encryptedData } = body;
+  const { publicKey, keyFingerprint, encryptedData, wrappedPrivateKey } = body;
 
-  if (!publicKey) {
-    return c.json({ error: 'publicKey is required' }, 400);
+  if (!publicKey && !wrappedPrivateKey) {
+    return c.json({ error: 'publicKey or wrappedPrivateKey is required' }, 400);
   }
 
-  // Update user's public key and optionally encrypted data
+  // If only updating the wrapped key (passphrase set/update from Settings)
+  if (!publicKey && wrappedPrivateKey) {
+    await c.env.DB.prepare(`
+      UPDATE User
+      SET wrappedPrivateKey = ?,
+          updatedAt = datetime('now')
+      WHERE id = ?
+    `).bind(wrappedPrivateKey, userId).run();
+    return c.json({ success: true });
+  }
+
+  // Full key update (initial setup or key regeneration)
+  const binds: any[] = [publicKey, keyFingerprint || null];
+  let extraCols = '';
+  if (encryptedData) {
+    extraCols += 'encryptedData = ?,';
+    binds.push(encryptedData);
+  }
+  if (wrappedPrivateKey) {
+    extraCols += 'wrappedPrivateKey = ?,';
+    binds.push(wrappedPrivateKey);
+  }
+  binds.push(userId);
+
   await c.env.DB.prepare(`
     UPDATE User
     SET publicKey = ?,
         keyFingerprint = ?,
         keyCreatedAt = datetime('now'),
-        ${encryptedData ? 'encryptedData = ?,' : ''}
+        ${extraCols}
         updatedAt = datetime('now')
     WHERE id = ?
-  `).bind(
-    publicKey,
-    keyFingerprint || null,
-    ...(encryptedData ? [encryptedData] : []),
-    userId
-  ).run();
+  `).bind(...binds).run();
 
   return c.json({ success: true });
+});
+
+// Get the passphrase-wrapped private key blob (opaque ciphertext)
+app.get('/keys/wrapped', async (c) => {
+  const userId = c.get('userId');
+
+  const user = await c.env.DB.prepare(
+    'SELECT wrappedPrivateKey FROM User WHERE id = ?'
+  ).bind(userId).first();
+
+  if (!user) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  return c.json({ wrappedPrivateKey: user.wrappedPrivateKey || null });
 });
 
 export default app;

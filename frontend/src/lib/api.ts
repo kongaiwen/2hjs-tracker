@@ -184,8 +184,12 @@ api.interceptors.response.use(async (response: AxiosResponse) => {
 // Auth API endpoints (simplified - only me endpoint needed for Cloudflare Access)
 export const authApi = {
   me: () => api.get('/api/auth/me'),
-  updateKeys: (publicKey: string, keyFingerprint?: string, encryptedData?: string) =>
-    api.put('/api/auth/keys', { publicKey, keyFingerprint, encryptedData }),
+  updateKeys: (publicKey: string, keyFingerprint?: string, encryptedData?: string, wrappedPrivateKey?: string) =>
+    api.put('/api/auth/keys', { publicKey, keyFingerprint, encryptedData, wrappedPrivateKey }),
+  updateWrappedKey: (wrappedPrivateKey: string) =>
+    api.put('/api/auth/keys', { wrappedPrivateKey }),
+  getWrappedKey: () =>
+    api.get<{ wrappedPrivateKey: string | null }>('/api/auth/keys/wrapped').then((r) => r.data),
 };
 
 // Employers
