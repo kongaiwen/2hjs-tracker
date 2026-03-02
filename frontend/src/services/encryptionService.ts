@@ -21,7 +21,7 @@ const SENSITIVE_FIELDS: Record<EntityType, string[]> = {
     'researchNotes', 'bigFourAnswers', 'tiaraQuestions',
     'referralName', 'referralContact', 'nextSteps', 'notes',
   ],
-  emailTemplate: ['name', 'subject', 'body', 'variables'],
+  emailTemplate: ['name', 'subject', 'body'],
   settings: [
     'googleAccessToken', 'googleRefreshToken', 'claudeApiKey',
     'defaultTimezone', 'workdayStart', 'workdayEnd', 'preferredCalendarId',

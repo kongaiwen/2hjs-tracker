@@ -225,13 +225,13 @@ app.post('/seed', async (c) => {
       subject: 'Your {{jobTitle}} experience at {{employerName}}',
       body: `Hi {{contactName}},
 
-I'm [Your Name], {{connection}}. May I chat with you for a few minutes about your {{jobTitle}} experience at {{employerName}}?
+I'm {{yourName}}, {{connection}}. May I chat with you for a few minutes about your {{jobTitle}} experience at {{employerName}}?
 
 I am trying to learn more about {{broadInterest}}, so your insights would be greatly appreciated.
 
 Best regards,
-[Your Name]`,
-      variables: ['contactName', 'connection', 'jobTitle', 'employerName', 'broadInterest'],
+{{yourName}}`,
+      variables: ['contactName', 'connection', 'jobTitle', 'employerName', 'broadInterest', 'yourName'],
       isDefault: true,
     },
     {
@@ -245,8 +245,8 @@ May I chat with you for a few minutes about your {{jobTitle}} experience at {{em
 I am trying to learn more about {{broadInterest}}, so your insights would be greatly appreciated.
 
 Best regards,
-[Your Name]`,
-      variables: ['contactName', 'jobTitle', 'employerName', 'broadInterest'],
+{{yourName}}`,
+      variables: ['contactName', 'jobTitle', 'employerName', 'broadInterest', 'yourName'],
       isDefault: true,
     },
     {
@@ -255,13 +255,13 @@ Best regards,
       subject: 'Your {{jobTitle}} experience at {{employerName}}',
       body: `Hi {{contactName}},
 
-I'm [Your Name], {{connection}}. May I have a few minutes to ask you about your {{jobTitle}} experience at {{employerName}}?
+I'm {{yourName}}, {{connection}}. May I have a few minutes to ask you about your {{jobTitle}} experience at {{employerName}}?
 
 Your insights would be greatly appreciated, since I'm now in the process of deciding whether to apply for your open {{postingTitle}} position.
 
 Best regards,
-[Your Name]`,
-      variables: ['contactName', 'connection', 'jobTitle', 'employerName', 'postingTitle'],
+{{yourName}}`,
+      variables: ['contactName', 'connection', 'jobTitle', 'employerName', 'postingTitle', 'yourName'],
       isDefault: true,
     },
     {
@@ -273,8 +273,8 @@ Best regards,
 I just wanted to follow up on my message from last week. Might this week be a more convenient time for you to chat about your {{employerName}} experience? Please let me know if so!
 
 Best regards,
-[Your Name]`,
-      variables: ['contactName', 'jobTitle', 'employerName'],
+{{yourName}}`,
+      variables: ['contactName', 'jobTitle', 'employerName', 'yourName'],
       isDefault: true,
     },
     {
@@ -288,8 +288,8 @@ Thank you so much for taking the time to speak with me today about {{employerNam
 I'll be sure to follow up on [specific next step they suggested].
 
 Best regards,
-[Your Name]`,
-      variables: ['contactName', 'employerName', 'broadInterest'],
+{{yourName}}`,
+      variables: ['contactName', 'employerName', 'broadInterest', 'yourName'],
       isDefault: true,
     },
   ];

@@ -760,8 +760,15 @@ function EmailComposer({
   // Get template variables (excluding auto-filled ones)
   const templateVariables = useMemo(() => {
     if (!selectedTemplate) return [];
-    // Handle case where variables might be encrypted (string) instead of array
-    const vars = Array.isArray(selectedTemplate.variables) ? selectedTemplate.variables : [];
+    // Handle case where variables might be a JSON string after decryption instead of array
+    let vars: string[];
+    if (Array.isArray(selectedTemplate.variables)) {
+      vars = selectedTemplate.variables;
+    } else if (typeof selectedTemplate.variables === 'string') {
+      try { vars = JSON.parse(selectedTemplate.variables); } catch { vars = []; }
+    } else {
+      vars = [];
+    }
     // These will be auto-filled from the contact/employer
     const autoFilled = ['contactName', 'employerName', 'jobTitle'];
     return vars.filter((v) => !autoFilled.includes(v));

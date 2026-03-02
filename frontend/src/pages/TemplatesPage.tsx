@@ -318,7 +318,10 @@ function TemplateEditor({
   const isWordCountOk = wordCount <= 75;
 
   const handleSubmit = () => {
-    const data = { name, type, subject, body, isDefault };
+    // Extract {{variable}} names from subject and body so the server stores them
+    const varMatches = [...(subject + ' ' + body).matchAll(/\{\{(\w+)\}\}/g)];
+    const variables = [...new Set(varMatches.map(m => m[1]))];
+    const data = { name, type, subject, body, isDefault, variables };
     if (template) {
       updateMutation.mutate({ id: template.id, data });
     } else {
