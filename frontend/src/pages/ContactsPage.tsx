@@ -656,7 +656,7 @@ export default function ContactsPage() {
                         <div className="flex items-center justify-end gap-1">
                           {!latest && (
                             <button
-                              onClick={() => navigate('/outreach')}
+                              onClick={() => navigate(`/outreach?contactId=${contact.id}`)}
                               className="p-1.5 rounded hover:bg-blue-100 transition-colors"
                               title="Start outreach"
                             >

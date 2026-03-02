@@ -1,13 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send, AlertCircle, Copy, ChevronRight, ChevronLeft, FileText, Mail, Calendar, Edit2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { outreachApi, contactsApi, templatesApi, googleApi, employersApi } from '@/lib/api';
 import { cn, formatDate, getStatusLabel, getSegmentColor, countWords } from '@/lib/utils';
 import type { Outreach, ResponseType, Contact, Employer, OutreachStatus } from '@/types';
 
 export default function OutreachPage() {
   const queryClient = useQueryClient();
-  const [showComposer, setShowComposer] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialContactId = searchParams.get('contactId');
+  const [showComposer, setShowComposer] = useState(!!initialContactId);
+
+  // Clear the contactId param after opening the composer so it doesn't persist on refresh
+  useEffect(() => {
+    if (initialContactId) {
+      setSearchParams({}, { replace: true });
+    }
+  }, [initialContactId, setSearchParams]);
 
   const { data: reminders } = useQuery({
     queryKey: ['reminders'],
@@ -176,6 +186,7 @@ export default function OutreachPage() {
       {/* Email Composer */}
       {showComposer && (
         <EmailComposer
+          initialContactId={initialContactId || undefined}
           onClose={() => setShowComposer(false)}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['outreach'] });
@@ -677,15 +688,17 @@ function OutreachDetail({ outreach, onClose }: { outreach: Outreach; onClose: ()
 type ComposerStep = 'select' | 'variables' | 'edit';
 
 function EmailComposer({
+  initialContactId,
   onClose,
   onSuccess,
 }: {
+  initialContactId?: string;
   onClose: () => void;
   onSuccess: () => void;
 }) {
   const queryClient = useQueryClient();
   const [step, setStep] = useState<ComposerStep>('select');
-  const [contactId, setContactId] = useState('');
+  const [contactId, setContactId] = useState(initialContactId || '');
   const [templateId, setTemplateId] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
