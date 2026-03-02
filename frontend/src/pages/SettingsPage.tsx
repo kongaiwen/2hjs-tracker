@@ -58,10 +58,10 @@ export default function SettingsPage() {
     }
   }, [keysAvailable]);
 
-  // Load Google auth status on mount
+  // Load Google auth status on mount and when returning from OAuth
   useEffect(() => {
     loadGoogleStatus();
-  }, []);
+  }, [googleStatus]);
 
   // Load Google calendars when authenticated
   useEffect(() => {
