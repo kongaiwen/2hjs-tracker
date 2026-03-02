@@ -76,7 +76,7 @@ function getNextTaskDate(o: LatestOutreach | undefined): string | null {
   return o.sentAt;
 }
 
-type ViewTab = 'all' | 'uncontacted' | 'active' | 'completed';
+type ViewTab = 'all' | 'uncontacted' | 'active' | 'completed' | 'movedOn';
 type SortKey = 'employer' | 'name' | 'lastContacted' | 'nextTask' | 'lampRank';
 type OrgType = 'all' | 'companies' | 'networks';
 
@@ -179,6 +179,18 @@ export default function ContactsPage() {
     return ids;
   }, [allContacts]);
 
+  // Employers with MOVED_ON outreach (companies where we've hit 3B and should try another contact)
+  const companiesWithMovedOn = useMemo(() => {
+    const ids = new Set<string>();
+    (allContacts || []).forEach(c => {
+      const o = (c.outreach as LatestOutreach[] | undefined)?.[0];
+      if (o && o.status === 'MOVED_ON') {
+        ids.add(c.employerId);
+      }
+    });
+    return ids;
+  }, [allContacts]);
+
   // ── derived counts for tabs (always based on all contacts) ──────────────────
   const counts = useMemo(() => {
     const all = allContacts || [];
@@ -193,9 +205,10 @@ export default function ContactsPage() {
         const o = (c.outreach as LatestOutreach[] | undefined)?.[0];
         return o && COMPLETED_STATUSES.includes(o.status as OutreachStatus);
       }).length,
+      movedOn: all.filter(c => companiesWithMovedOn.has(c.employerId)).length,
       boosters: all.filter(c => c.segment === 'BOOSTER').length,
     };
-  }, [allContacts]);
+  }, [allContacts, companiesWithMovedOn]);
 
   // ── filtered + sorted list ───────────────────────────────────────────────────
   const contacts = useMemo(() => {
@@ -214,6 +227,10 @@ export default function ContactsPage() {
         const o = (c.outreach as LatestOutreach[] | undefined)?.[0];
         return o && COMPLETED_STATUSES.includes(o.status as OutreachStatus);
       });
+    } else if (view === 'movedOn') {
+      // Contacts at companies where someone has hit MOVED_ON status
+      // Show all contacts at these companies (including those already contacted)
+      result = result.filter(c => companiesWithMovedOn.has(c.employerId));
     }
 
     // org type filter
@@ -326,6 +343,7 @@ export default function ContactsPage() {
             ['uncontacted', 'Not Contacted', counts.uncontacted],
             ['active', 'Active', counts.active],
             ['completed', 'Done', counts.completed],
+            ['movedOn', 'Next @ Active Companies', counts.movedOn],
           ] as [ViewTab, string, number][]).map(([key, label, count]) => (
             <button
               key={key}

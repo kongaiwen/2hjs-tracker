@@ -56,7 +56,9 @@ export const authMiddleware: MiddlewareHandler<{
   };
 }> = async (c, next) => {
   // Skip auth for OAuth callback (called by Google, not by user)
-  if (c.req.path === '/api/google/callback') {
+  // Check both the path and the URL for compatibility
+  const path = c.req.path || c.req.url?.split('?')[0] || '';
+  if (path.includes('/api/google/callback')) {
     await next();
     return;
   }
