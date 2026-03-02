@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2,
@@ -15,6 +16,7 @@ import {
 import { outreachApi, employersApi, informationalsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { usePatchedOutreach, usePatchedInformationals } from '@/hooks/useDecryptedData';
 
 export default function DashboardPage() {
   const { data: reminders, isLoading: remindersLoading } = useQuery({
@@ -36,6 +38,58 @@ export default function DashboardPage() {
     queryKey: ['informationals', 'digest'],
     queryFn: informationalsApi.getDigest,
   });
+
+  // Patch outreach reminders with decrypted employer and contact names
+  const patchedReminders = usePatchedOutreach(
+    reminders?.threeBReminders?.concat(
+      reminders?.sevenBReminders || [],
+      reminders?.overdue3B || [],
+      reminders?.overdue7B || []
+    ) || []
+  );
+
+  // Patch informationals with decrypted names
+  const patchedInformationals = usePatchedInformationals(
+    informationalDigest?.today?.concat(
+      informationalDigest?.needsPreparation || [],
+      informationalDigest?.thisWeek || []
+    ) || []
+  );
+
+  // Reconstruct patched reminders object
+  const patchedRemindersObject = useMemo(() => {
+    if (!reminders || !patchedReminders.patchedOutreach) return reminders;
+
+    const patched = patchedReminders.patchedOutreach;
+    const threeBCount = reminders.threeBReminders?.length || 0;
+    const sevenBCount = reminders.sevenBReminders?.length || 0;
+    const overdue3BCount = reminders.overdue3B?.length || 0;
+    const overdue7BCount = reminders.overdue7B?.length || 0;
+
+    return {
+      ...reminders,
+      threeBReminders: patched.slice(0, threeBCount),
+      sevenBReminders: patched.slice(threeBCount, threeBCount + sevenBCount),
+      overdue3B: patched.slice(threeBCount + sevenBCount, threeBCount + sevenBCount + overdue3BCount),
+      overdue7B: patched.slice(threeBCount + sevenBCount + overdue3BCount),
+    };
+  }, [reminders, patchedReminders]);
+
+  // Reconstruct patched informationals digest
+  const patchedDigest = useMemo(() => {
+    if (!informationalDigest || !patchedInformationals.patchedInformationals) return informationalDigest;
+
+    const patched = patchedInformationals.patchedInformationals;
+    const todayCount = informationalDigest.today?.length || 0;
+    const needsPrepCount = informationalDigest.needsPreparation?.length || 0;
+
+    return {
+      ...informationalDigest,
+      today: patched.slice(0, todayCount),
+      needsPreparation: patched.slice(todayCount, todayCount + needsPrepCount),
+      thisWeek: patched.slice(todayCount + needsPrepCount),
+    };
+  }, [informationalDigest, patchedInformationals]);
 
   return (
     <div className="space-y-6">
@@ -74,32 +128,32 @@ export default function DashboardPage() {
         <StatCard
           icon={AlertCircle}
           label="Actions Needed"
-          value={reminders?.summary.totalActionRequired || 0}
+          value={patchedRemindersObject?.summary.totalActionRequired || 0}
           subtext="3B/7B reminders"
           loading={remindersLoading}
-          alert={!!reminders?.summary.totalActionRequired}
+          alert={!!patchedRemindersObject?.summary.totalActionRequired}
         />
         <StatCard
           icon={Calendar}
           label="Informationals"
-          value={informationalDigest?.summary.todayCount || 0}
-          subtext={`${informationalDigest?.summary.weekCount || 0} this week`}
+          value={patchedDigest?.summary.todayCount || 0}
+          subtext={`${patchedDigest?.summary.weekCount || 0} this week`}
           loading={digestLoading}
-          highlight={!!informationalDigest?.summary.todayCount}
+          highlight={!!patchedDigest?.summary.todayCount}
         />
       </div>
 
       {/* Upcoming Informationals */}
-      {informationalDigest && (informationalDigest.today.length > 0 || informationalDigest.needsPreparation.length > 0) && (
+      {patchedDigest && (patchedDigest.today.length > 0 || patchedDigest.needsPreparation.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {informationalDigest.today.length > 0 && (
+          {patchedDigest.today.length > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 Today's Informationals
               </h3>
               <div className="space-y-2">
-                {informationalDigest.today.map((inf) => (
+                {patchedDigest.today.map((inf) => (
                   <div key={inf.id} className="flex items-center justify-between bg-white/50 rounded p-2">
                     <div>
                       <p className="font-medium">{inf.contact?.name}</p>
@@ -122,14 +176,14 @@ export default function DashboardPage() {
               </Link>
             </div>
           )}
-          {informationalDigest.needsPreparation.length > 0 && (
+          {patchedDigest.needsPreparation.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
               <h3 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5" />
                 Needs Preparation
               </h3>
               <div className="space-y-2">
-                {informationalDigest.needsPreparation.slice(0, 3).map((inf) => (
+                {patchedDigest.needsPreparation.slice(0, 3).map((inf) => (
                   <div key={inf.id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-amber-900">{inf.contact?.name}</p>
@@ -163,7 +217,7 @@ export default function DashboardPage() {
 
           {remindersLoading ? (
             <div className="text-muted-foreground">Loading...</div>
-          ) : reminders?.summary.totalActionRequired === 0 ? (
+          ) : patchedRemindersObject?.summary.totalActionRequired === 0 ? (
             <div className="text-center py-8">
               <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
               <p className="text-muted-foreground">
@@ -173,14 +227,14 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-4">
               {/* 3B Reminders */}
-              {(reminders?.threeBReminders.length || 0) > 0 && (
+              {(patchedRemindersObject?.threeBReminders.length || 0) > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
                     <Clock className="w-4 h-4" />
                     3B: Try new contact
                   </h3>
                   <ul className="space-y-2">
-                    {reminders?.threeBReminders.map((o) => (
+                    {patchedRemindersObject?.threeBReminders.map((o) => (
                       <ReminderItem
                         key={o.id}
                         type="3B"
@@ -193,14 +247,14 @@ export default function DashboardPage() {
               )}
 
               {/* 7B Reminders */}
-              {(reminders?.sevenBReminders.length || 0) > 0 && (
+              {(patchedRemindersObject?.sevenBReminders.length || 0) > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
                     <Clock className="w-4 h-4" />
                     7B: Follow up
                   </h3>
                   <ul className="space-y-2">
-                    {reminders?.sevenBReminders.map((o) => (
+                    {patchedRemindersObject?.sevenBReminders.map((o) => (
                       <ReminderItem
                         key={o.id}
                         type="7B"
@@ -213,14 +267,14 @@ export default function DashboardPage() {
               )}
 
               {/* Overdue */}
-              {((reminders?.overdue3B.length || 0) + (reminders?.overdue7B.length || 0)) > 0 && (
+              {((patchedRemindersObject?.overdue3B.length || 0) + (patchedRemindersObject?.overdue7B.length || 0)) > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-destructive mb-2 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
                     Overdue
                   </h3>
                   <ul className="space-y-2">
-                    {reminders?.overdue3B.map((o) => (
+                    {patchedRemindersObject?.overdue3B.map((o) => (
                       <ReminderItem
                         key={o.id}
                         type="3B"
@@ -229,7 +283,7 @@ export default function DashboardPage() {
                         overdue
                       />
                     ))}
-                    {reminders?.overdue7B.map((o) => (
+                    {patchedRemindersObject?.overdue7B.map((o) => (
                       <ReminderItem
                         key={o.id}
                         type="7B"

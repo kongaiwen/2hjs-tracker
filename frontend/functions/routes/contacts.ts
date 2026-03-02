@@ -23,7 +23,26 @@ app.get('/', async (c) => {
   const employerId = c.req.query('employerId');
 
   let query = `
-    SELECT c.*, e.id as _employerId, e.name as _employerName
+    SELECT c.*, e.id as _employerId, e.name as _employerName,
+           (
+             SELECT COUNT(*)
+             FROM Outreach o
+             WHERE o.contactId = c.id
+           ) as _outreachCount,
+           (
+             SELECT json_group_array(json_object(
+               'id', o.id,
+               'status', o.status,
+               'sentAt', o.sentAt,
+               'threeB_Date', o.threeB_Date,
+               'sevenB_Date', o.sevenB_Date,
+               'responseAt', o.responseAt,
+               'responseType', o.responseType
+             ))
+             FROM Outreach o
+             WHERE o.contactId = c.id
+             ORDER BY o.sentAt DESC
+           ) as _outreach
     FROM Contact c
     LEFT JOIN Employer e ON c.employerId = e.id
     WHERE c.userId = ?
@@ -39,15 +58,21 @@ app.get('/', async (c) => {
 
   const contacts = await c.env.DB.prepare(query).bind(...params).all();
 
-  // Map results to include employer object and normalize booleans
+  // Map results to include employer object, normalize booleans, add _count, and parse outreach
   const mappedContacts = contacts.results.map((row: any) => normalizeContact({
     ...row,
     employer: row._employerId ? {
       id: row._employerId,
       name: row._employerName
     } : null,
+    _count: {
+      outreach: row._outreachCount || 0
+    },
+    outreach: row._outreach ? JSON.parse(row._outreach) : [],
     _employerId: undefined,
-    _employerName: undefined
+    _employerName: undefined,
+    _outreachCount: undefined,
+    _outreach: undefined
   }));
 
   return c.json({ contacts: mappedContacts });
@@ -58,7 +83,26 @@ app.get('/:id', async (c) => {
   const id = c.req.param('id');
 
   const row = await c.env.DB.prepare(`
-    SELECT c.*, e.id as _employerId, e.name as _employerName
+    SELECT c.*, e.id as _employerId, e.name as _employerName,
+           (
+             SELECT COUNT(*)
+             FROM Outreach o
+             WHERE o.contactId = c.id
+           ) as _outreachCount,
+           (
+             SELECT json_group_array(json_object(
+               'id', o.id,
+               'status', o.status,
+               'sentAt', o.sentAt,
+               'threeB_Date', o.threeB_Date,
+               'sevenB_Date', o.sevenB_Date,
+               'responseAt', o.responseAt,
+               'responseType', o.responseType
+             ))
+             FROM Outreach o
+             WHERE o.contactId = c.id
+             ORDER BY o.sentAt DESC
+           ) as _outreach
     FROM Contact c
     LEFT JOIN Employer e ON c.employerId = e.id
     WHERE c.id = ? AND c.userId = ?
@@ -74,8 +118,14 @@ app.get('/:id', async (c) => {
       id: row._employerId,
       name: row._employerName
     } : null,
+    _count: {
+      outreach: row._outreachCount || 0
+    },
+    outreach: row._outreach ? JSON.parse(row._outreach) : [],
     _employerId: undefined,
-    _employerName: undefined
+    _employerName: undefined,
+    _outreachCount: undefined,
+    _outreach: undefined
   });
 
   return c.json({ contact });

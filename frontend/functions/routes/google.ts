@@ -20,11 +20,10 @@ const SCOPES = [
  * GET /api/google/auth
  */
 app.get('/auth', async (c) => {
-  const userId = c.get('userId');
   const redirectUri = c.env.GOOGLE_REDIRECT_URI || `https://${c.req.header('host')}/api/google/callback`;
 
-  // Create a state parameter that includes the userId for security and identification
-  const state = encodeURIComponent(JSON.stringify({ userId, timestamp: Date.now() }));
+  // Create a state parameter for CSRF protection (no longer includes userId)
+  const state = encodeURIComponent(JSON.stringify({ timestamp: Date.now() }));
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
     client_id: c.env.GOOGLE_CLIENT_ID,
@@ -41,12 +40,13 @@ app.get('/auth', async (c) => {
 
 /**
  * Handle OAuth callback
- * GET /api/google/callback?code={authorization_code}&state={encoded_user_id}
+ * GET /api/google/callback?code={authorization_code}&state={csrf_token}
+ *
+ * Note: Auth middleware provides userId via c.get('userId')
  */
 app.get('/callback', async (c) => {
   const code = c.req.query('code');
   const error = c.req.query('error');
-  const state = c.req.query('state');
 
   // Get the frontend URL for redirect
   const frontendUrl = c.env.FRONTEND_URL || `https://${c.req.header('host')?.replace(/\/api\/google\/callback.*/, '')}` || 'https://2hjs-tracker.pages.dev';
@@ -60,23 +60,29 @@ app.get('/callback', async (c) => {
     return c.redirect(`${frontendUrl}/settings?google=error`);
   }
 
+  // Get userId from auth middleware (set by middleware)
+  const userId = c.get('userId');
+  if (!userId) {
+    console.error('OAuth callback: No userId from auth middleware');
+    return c.redirect(`${frontendUrl}/settings?google=error`);
+  }
+
   try {
-    // Extract userId from state parameter
-    let userId: string;
-    try {
-      const stateData = JSON.parse(decodeURIComponent(state || ''));
-      userId = stateData.userId;
-    } catch {
-      // Fallback: try to get userId from auth middleware (for direct API calls during testing)
-      userId = c.get('userId');
-    }
-
-    if (!userId) {
-      console.error('OAuth callback: No userId found in state or auth middleware');
-      return c.redirect(`${frontendUrl}/settings?google=error`);
-    }
-
     const redirectUri = c.env.GOOGLE_REDIRECT_URI || `${frontendUrl}/api/google/callback`;
+
+    // Ensure Settings record exists
+    let settings = await c.env.DB.prepare(
+      'SELECT id FROM Settings WHERE userId = ?'
+    ).bind(userId).first();
+
+    if (!settings) {
+      // Create Settings record if it doesn't exist
+      const id = crypto.randomUUID();
+      await c.env.DB.prepare(`
+        INSERT INTO Settings (id, userId, createdAt, updatedAt)
+        VALUES (?, ?, datetime('now'), datetime('now'))
+      `).bind(id, userId).run();
+    }
 
     // Exchange authorization code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -107,11 +113,17 @@ app.get('/callback', async (c) => {
       : null;
 
     // Store tokens in Settings table
-    await c.env.DB.prepare(`
+    const result = await c.env.DB.prepare(`
       UPDATE Settings
       SET googleAccessToken = ?, googleRefreshToken = ?, googleTokenExpiry = ?, updatedAt = datetime('now')
       WHERE userId = ?
     `).bind(tokens.access_token, tokens.refresh_token || null, expiryDate, userId).run();
+
+    // Verify UPDATE succeeded
+    if (!result.success || result.meta.changes === 0) {
+      console.error('Failed to store Google tokens - no rows updated');
+      return c.redirect(`${frontendUrl}/settings?google=error`);
+    }
 
     // Redirect to settings page with success flag
     return c.redirect(`${frontendUrl}/settings?google=success`);

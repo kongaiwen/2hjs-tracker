@@ -55,13 +55,8 @@ export const authMiddleware: MiddlewareHandler<{
     isAdmin: boolean;
   };
 }> = async (c, next) => {
-  // Skip auth for OAuth callback (called by Google, not by user)
-  // Check both the path and the URL for compatibility
-  const path = c.req.path || c.req.url?.split('?')[0] || '';
-  if (path.includes('/api/google/callback')) {
-    await next();
-    return;
-  }
+  // Note: OAuth callback now uses auth middleware to get the current authenticated user
+  // The state parameter is still used for CSRF protection, but userId comes from c.get('userId')
 
   // Try CF_Authorization JWT cookie first, then fall back to header
   let email = getEmailFromJwt(c.req.header('Cookie'))
