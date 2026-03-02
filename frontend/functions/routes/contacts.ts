@@ -202,6 +202,28 @@ app.put('/:id', async (c) => {
   return c.json({ contact: normalizeContact(contact) });
 });
 
+// Update contact segment
+app.put('/:id/segment', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const { segment } = await c.req.json();
+
+  if (!segment) {
+    return c.json({ error: 'Segment is required' }, 400);
+  }
+
+  const result = await c.env.DB.prepare(
+    'UPDATE Contact SET segment = ?, updatedAt = datetime(\'now\') WHERE id = ? AND userId = ?'
+  ).bind(segment, id, userId).run();
+
+  if (!result.success || result.meta.changes === 0) {
+    return c.json({ error: 'Contact not found' }, 404);
+  }
+
+  const contact = await c.env.DB.prepare('SELECT * FROM Contact WHERE id = ?').bind(id).first();
+  return c.json(normalizeContact(contact));
+});
+
 app.delete('/:id', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
