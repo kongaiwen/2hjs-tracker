@@ -64,7 +64,6 @@ export default function DashboardPage() {
     const threeBCount = reminders.threeBReminders?.length || 0;
     const sevenBCount = reminders.sevenBReminders?.length || 0;
     const overdue3BCount = reminders.overdue3B?.length || 0;
-    const overdue7BCount = reminders.overdue7B?.length || 0;
 
     return {
       ...reminders,
