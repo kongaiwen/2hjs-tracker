@@ -249,7 +249,7 @@ function TemplatePreview({
 
       <div className="mb-4">
         <label className="text-sm font-medium text-muted-foreground">Subject</label>
-        <p className="font-mono bg-muted/50 rounded px-3 py-2 mt-1">{template.subject}</p>
+        <p className="font-mono bg-muted/50 rounded px-3 py-2 mt-1">{typeof template.subject === 'string' ? template.subject : '(No subject)'}</p>
       </div>
 
       <div className="mb-4">
@@ -265,11 +265,11 @@ function TemplatePreview({
           </span>
         </div>
         <pre className="font-mono text-sm bg-muted/50 rounded px-3 py-2 mt-1 whitespace-pre-wrap">
-          {template.body}
+          {typeof template.body === 'string' ? template.body : '(No body available)'}
         </pre>
       </div>
 
-      {template.variables.length > 0 && (
+      {Array.isArray(template.variables) && template.variables.length > 0 && (
         <div>
           <label className="text-sm font-medium text-muted-foreground">Variables</label>
           <div className="flex gap-2 mt-1">

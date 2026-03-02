@@ -272,9 +272,16 @@ export class CryptoService {
     return bytes.buffer as ArrayBuffer;
   }
 
-  // Generate fingerprint from PEM public key
-  fingerprintFromPEM(pem: string): string {
-    // Simple hash of the PEM content for display
+  // Generate fingerprint from PEM public key (async wrapper for generateFingerprint)
+  async fingerprintFromPEM(pem: string): Promise<string> {
+    const cryptoKey = await this.importPublicKey(pem);
+    return await this.generateFingerprint(cryptoKey);
+  }
+
+  // Synchronous version for display purposes only (use async version when possible)
+  fingerprintFromPEMSync(pem: string): string {
+    // Simple hash of the PEM content for display - NOT cryptographically secure
+    // Only use this when you can't use the async SHA-256 version
     let hash = 0;
     for (let i = 0; i < pem.length; i++) {
       const char = pem.charCodeAt(i);

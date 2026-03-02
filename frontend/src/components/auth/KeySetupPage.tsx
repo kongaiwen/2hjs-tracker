@@ -19,6 +19,9 @@ export function KeySetupPage() {
   const [passphraseConfirm, setPassphraseConfirm] = useState('');
   const [savingPassphrase, setSavingPassphrase] = useState(false);
 
+  // Fingerprint display
+  const [fingerprintDisplay, setFingerprintDisplay] = useState<string | null>(null);
+
   // Returning user (restore flow)
   const [isReturningUser, setIsReturningUser] = useState(false);
   const [restoreMode, setRestoreMode] = useState<RestoreMode>('choose');
@@ -60,6 +63,11 @@ export function KeySetupPage() {
 
       setGeneratedKeys({ publicKey, privateKey });
       await keyManager.storeKeys({ publicKey, privateKey });
+
+      // Generate fingerprint for display
+      const fingerprint = await crypto.fingerprintFromPEM(publicKey);
+      setFingerprintDisplay(fingerprint);
+
       setStep('download');
     } catch {
       setError('Failed to generate encryption keys. Please refresh and try again.');
@@ -106,7 +114,7 @@ export function KeySetupPage() {
       const wrapped = await crypto.wrapPrivateKey(generatedKeys.privateKey, passphrase);
       const wrappedJson = JSON.stringify(wrapped);
 
-      const keyFingerprint = crypto.fingerprintFromPEM(generatedKeys.publicKey);
+      const keyFingerprint = await crypto.fingerprintFromPEM(generatedKeys.publicKey);
       await authApi.updateKeys(generatedKeys.publicKey, keyFingerprint, undefined, wrappedJson);
       setHasKeys(true);
       updateUser({ hasEncryptionKeys: true, hasWrappedKey: true, publicKey: generatedKeys.publicKey, keyFingerprint });
@@ -121,7 +129,7 @@ export function KeySetupPage() {
   const skipPassphrase = async () => {
     if (!generatedKeys) return;
     try {
-      const keyFingerprint = crypto.fingerprintFromPEM(generatedKeys.publicKey);
+      const keyFingerprint = await crypto.fingerprintFromPEM(generatedKeys.publicKey);
       await authApi.updateKeys(generatedKeys.publicKey, keyFingerprint);
       setHasKeys(true);
       updateUser({ hasEncryptionKeys: true, hasWrappedKey: false, publicKey: generatedKeys.publicKey, keyFingerprint });
@@ -223,6 +231,12 @@ export function KeySetupPage() {
         privateKey: privateKeyPEM,
       });
 
+      // Update server fingerprint if it was null (first sync after fix)
+      if (!serverFingerprint) {
+        await authApi.updateKeys(meData.publicKey, fingerprint);
+        updateUser({ keyFingerprint: fingerprint });
+      }
+
       setHasKeys(true);
       navigate('/');
     } catch (err: any) {
@@ -248,13 +262,19 @@ export function KeySetupPage() {
       // Verify fingerprint matches server's
       const meRes = await authApi.me();
       const serverFingerprint = meRes.data.keyFingerprint;
-      const importedFingerprint = crypto.fingerprintFromPEM(imported.publicKey);
+      const importedFingerprint = await crypto.fingerprintFromPEM(imported.publicKey);
 
       if (serverFingerprint && importedFingerprint !== serverFingerprint) {
         await keyManager.clearKeys();
         setError('Key fingerprint does not match the server record. This key file may be from a different account.');
         setRestoring(false);
         return;
+      }
+
+      // Update server fingerprint if it was null (first sync after fix)
+      if (!serverFingerprint) {
+        await authApi.updateKeys(imported.publicKey, importedFingerprint);
+        updateUser({ keyFingerprint: importedFingerprint });
       }
 
       setHasKeys(true);
@@ -468,7 +488,7 @@ export function KeySetupPage() {
             <div className="bg-gray-50 rounded p-4">
               <h4 className="font-semibold mb-2">Your Key Fingerprint</h4>
               <code className="text-xs bg-gray-200 px-2 py-1 rounded break-all">
-                {crypto.fingerprintFromPEM(generatedKeys.publicKey)}
+                {fingerprintDisplay || 'Generating...'}
               </code>
             </div>
 

@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A job search tracking application implementing methodologies from Steve Dalton's book "The 2-Hour Job Search". Features include LAMP list management, contact outreach tracking (3B7 routine), informational interview preparation with TIARA framework, and E2E encrypted data storage.
 
+## Completion Notification
+
+When completing tasks, send a push notification:
+```bash
+curl -X POST https://api.getmoshi.app/api/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"token": "uSHsgGPKtnpGWoMmeF0P3tXplQmcZmXS", "title": "Done", "message": "Brief summary", "image": "optional http url"}'
+```
+
 ## Development Commands
 
 ### Docker (Recommended - Current Stack)
@@ -18,6 +27,9 @@ docker-compose logs -f
 
 # Stop services
 docker-compose down
+
+# Rebuild containers (after code changes)
+docker-compose down && docker-compose build && docker-compose up -d
 ```
 
 ### Backend (Express + Prisma + PostgreSQL)
@@ -25,12 +37,19 @@ docker-compose down
 cd backend
 npm install
 
-# Database setup (first time or after schema changes)
+# Database setup (required after schema changes)
 npx prisma generate
 npx prisma db push
 
 # Development server
 npm run dev
+
+# Build TypeScript
+npm run build
+
+# Data export/migration
+npm run export:unencrypted-data    # Export data as JSON
+npm run migrate:data               # Migrate to D1 format
 ```
 
 ### Frontend (Vite + React + TypeScript)
@@ -38,23 +57,26 @@ npm run dev
 cd frontend
 npm install
 npm run dev          # Development server on port 5173
-npm run build        # Production build
+npm run build        # Production build (includes worker bundle)
+npm run build:worker # Build only the Cloudflare Worker
+npm run preview      # Preview production build
 ```
 
 ### Cloudflare Deployment (Migration Target)
 ```bash
-# Deploy backend API (Cloudflare Workers)
-cd frontend/functions
-npm run deploy       # Wrangler deploy
-
-# Deploy frontend (Cloudflare Pages)
+# Local development with D1 and KV
 cd frontend
+wrangler pages dev
+
+# Deploy to Cloudflare Pages (production)
 npm run build
 npx wrangler pages deploy dist --project-name=2hjs-tracker
 
-# Local development with D1
-cd frontend/functions
-wrangler dev         # Local development with D1 and KV
+# View real-time logs
+wrangler tail
+
+# Set secrets (requires Pages project)
+wrangler pages secret put ADMIN_EMAIL --project-name=2hjs-tracker
 ```
 
 ### Database Operations
@@ -62,12 +84,14 @@ wrangler dev         # Local development with D1 and KV
 # Access PostgreSQL container directly
 docker exec -it 2hjs-tracker-postgres-1 psql -U 2hjs -d 2hjs_tracker
 
-# Backup database
-cd backend
-npm run export:unencrypted-data
+# Interactive database browser
+npx prisma studio
 
-# Run migrations (backend/src/scripts/)
-node dist/scripts/migrateToAdmin.js
+# Backup/export data
+cd backend && npm run export:unencrypted-data
+
+# Create admin invite (for new user registration)
+cd backend && npx tsx scripts/createAdminInvite.ts
 ```
 
 ## Architecture
@@ -108,10 +132,27 @@ All data models support multi-tenancy via `userId`:
 
 ### Frontend Structure
 
-- **Pages**: `frontend/src/pages/` - Dashboard, LAMP, Contacts, Outreach, Calendar, Templates, Settings, About
-- **Components**: `frontend/src/components/` - auth/, admin/, chat/, layout/
-- **State**: Zustand stores in `frontend/src/stores/`
-- **Services**: `frontend/src/services/` - cryptoService.ts, keyManager.ts (E2E encryption)
+- **Pages**: `frontend/src/pages/`
+  - `DashboardPage.tsx` - Overview with reminders and stats
+  - `LAMPPage.tsx` - LAMP list management
+  - `ContactsPage.tsx` - Contact CRUD per employer
+  - `OutreachPage.tsx` - Email tracking and 3B7 follow-ups
+  - `CalendarPage.tsx` - Upcoming reminders view
+  - `TemplatesPage.tsx` - Email template management
+  - `SettingsPage.tsx` - User preferences and API keys
+  - `BulkUploadPage.tsx` - CSV import for employers/contacts
+
+- **Components**: `frontend/src/components/`
+  - `auth/` - Login, registration, key setup
+  - `admin/` - Admin-only components
+  - `layout/` - Navigation, header, main layout
+
+- **Services**: `frontend/src/services/`
+  - `cryptoService.ts` - RSA-OAEP encryption/decryption
+  - `keyManager.ts` - IndexedDB key storage
+  - `api.ts` - API client with auth interceptor
+
+- **State**: `frontend/src/stores/authStore.ts` - Zustand store for auth state
 
 ## Core Methodology Concepts
 
@@ -150,7 +191,7 @@ RESEND_API_KEY=resend-api-key
 
 **Cloudflare (wrangler.toml secrets)**:
 ```
-ADMIN_EMAIL      # Set via `wrangler pages secret put`
+ADMIN_EMAIL      # Set via `wrangler pages secret put ADMIN_EMAIL --project-name=2hjs-tracker`
 ```
 
 D1 database and KV bindings are configured in `frontend/wrangler.toml`.
@@ -158,25 +199,47 @@ D1 database and KV bindings are configured in `frontend/wrangler.toml`.
 ## Route Patterns
 
 ### Express Backend (`/api/*`)
-- `/api/auth/*` - Authentication (login, register, magic link)
+- `/api/auth/*` - Authentication (magic link, verify, register)
 - `/api/employers` - LAMP list CRUD
 - `/api/contacts` - Contact management
 - `/api/outreach` - 3B7 tracking, reminders
 - `/api/templates` - Email templates
 - `/api/informationals` - Interview tracking
-- `/api/google` - Google Calendar/Gmail integration
-- `/api/claude` - AI chat assistant
+- `/api/admin/*` - Admin operations (bulk upload, users)
 
 ### Cloudflare Workers (`/api/*`)
-Same route patterns, implemented in `frontend/functions/routes/` with Hono.
+Same route patterns, implemented in `frontend/functions/routes/` with Hono:
+- `routes/auth.ts` - Authentication via Cloudflare Access headers
+- `routes/employers.ts` - LAMP CRUD with D1
+- `routes/contacts.ts` - Contact management
+- `routes/outreach.ts` - 3B7 tracking
+- `routes/templates.ts` - Email templates
+- `routes/informationals.ts` - Interview tracking
+- `routes/settings.ts` - User settings
+- `routes/bulk.ts` - Bulk import/export
+- `routes/admin.ts` - Admin-only operations
 
 ## Important Notes
 
 - **E2E Encryption**: All user data is encrypted on the client before storage using Web Crypto API (RSA-OAEP)
+  - Encryption keys generated in browser (`frontend/src/services/cryptoService.ts`)
+  - Private keys stored in IndexedDB (`frontend/src/services/keyManager.ts`)
+  - Only public key stored on server (for verification, not decryption)
+  - Data encrypted before API calls, decrypted after fetch
+
 - **Business Days**: Calendar calculations exclude weekends and holidays
+  - Computed in `frontend/src/lib/businessDays.ts`
+  - Used for 3B (3 business days) and 7B (7 business days) follow-up calculations
+
 - **Migration Status**: See `IMPLEMENTATION_STATUS.md` for current migration progress
+  - Dual architecture: Express/PostgreSQL (current) + Cloudflare/D1 (target)
+  - Most Express routes have Cloudflare equivalents in `frontend/functions/routes/`
+
 - **Data Migration**: PostgreSQL backup can be imported via `backend/src/scripts/importPostgresBackup.ts`
-- **Index Transpilation**: `_worker.ts` is transpiled to `_worker.js` for Cloudflare Pages Functions compatibility
+
+- **Worker Transpilation**: `_worker.ts` is transpiled to `_worker.js` via esbuild for Cloudflare Pages Functions compatibility
+  - Build script: `npm run build:worker`
+  - Output copied to `dist/_worker.js` during build
 
 ## Troubleshooting
 
@@ -186,6 +249,13 @@ Same route patterns, implemented in `frontend/functions/routes/` with Hono.
 docker-compose down
 docker-compose build
 docker-compose up -d
+
+# Check container logs
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
+# Restart specific service
+docker-compose restart backend
 ```
 
 ### Prisma issues
@@ -195,6 +265,9 @@ cd backend && npx prisma generate
 
 # Reset database (CAUTION: destroys data)
 npx prisma db push --force-reset
+
+# View database in browser
+npx prisma studio
 ```
 
 ### Cloudflare Workers deployment
@@ -202,6 +275,17 @@ npx prisma db push --force-reset
 # View real-time logs
 wrangler tail
 
-# Test locally first
-wrangler dev --local
+# Test locally with D1
+wrangler pages dev --local
+
+# Clear Workers cache
+wrangler pages cache clear --project-name=2hjs-tracker
 ```
+
+### Common Issues
+- **CF-Access-User-Email header missing**: Cloudflare Access not configured or bypassed in dev mode
+  - Set `DEV_MODE=true` in wrangler.toml vars for local development
+  - Use `DEV_EMAIL` var to simulate authenticated user
+- **IndexedDB errors**: Private storage may be blocked in browser; check browser settings
+- **D1 query errors**: Ensure schema pushed with `wrangler d1 execute DB --file=schema.sql`
+- **TypeScript errors in worker**: Ensure `_worker.ts` is transpiled before deploy

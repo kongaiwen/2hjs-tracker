@@ -68,12 +68,9 @@ export async function migrateToEncrypted(
         continue;
       }
 
-      // We need the raw records to check for encryptedData, but the interceptor
-      // already decrypted them. We need to re-fetch without interception to check
-      // which records are already encrypted. Instead, we'll encrypt all records
-      // that don't have a specific marker. Since we can't easily bypass interceptors,
-      // we'll just re-encrypt everything — it's idempotent.
-      const unencrypted = records.filter(r => !r._wasEncrypted);
+      // Filter to only records that are not already encrypted
+      // The response interceptor marks decrypted records with _wasEncrypted
+      const unencrypted = records.filter(r => !r._wasEncrypted && !r.encryptedData);
       p.total = records.length;
 
       for (const record of unencrypted) {
@@ -82,21 +79,34 @@ export async function migrateToEncrypted(
           // We just need to PUT the record back — the interceptor encrypts it
           const { id, ...updateData } = record;
 
-          // Remove read-only / server-managed fields
+          // Remove read-only / server-managed fields and internal flags
           delete updateData.createdAt;
           delete updateData.updatedAt;
           delete updateData.userId;
           delete updateData.encryptedData;
+          delete updateData._wasEncrypted;
           delete updateData._employerId;
           delete updateData._employerName;
           delete updateData.employer;
           delete updateData.outreach;
           delete updateData._count;
           delete updateData.latestOutreach;
+          delete updateData.contact; // This is just { id: ... } for type compatibility
+          // For templates
+          delete updateData.wordCount; // Recalculated on server
+          // For contacts
+          delete updateData.segment; // Managed separately
+
+          // Skip if no fields to update (shouldn't happen, but safety check)
+          if (Object.keys(updateData).length === 0) {
+            continue;
+          }
 
           await api.put(`${config.endpoint}/${id}`, updateData);
           p.encrypted++;
-        } catch {
+        } catch (err: any) {
+          // Log the error for debugging
+          console.error(`Failed to migrate ${config.type} record ${record.id}:`, err.response?.data || err.message);
           p.failed++;
         }
         onProgress?.(progress);
@@ -122,8 +132,9 @@ export async function getEncryptionStatus(): Promise<MigrationProgress[]> {
 
   for (const config of ENTITY_CONFIGS) {
     try {
-      // Use raw fetch to bypass interceptors (we want to see raw encryptedData field)
-      const response = await fetch(config.endpoint);
+      // Use raw fetch to bypass axios interceptors (we want to see raw encryptedData field)
+      const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+      const response = await fetch(`${baseUrl}${config.endpoint}`);
       const data = await response.json();
 
       let records: any[];

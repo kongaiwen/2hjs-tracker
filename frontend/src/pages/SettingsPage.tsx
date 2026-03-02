@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Mail, Calendar, Check, X, Shield, Lock, Key, Download } from 'lucide-react';
+import { Mail, Calendar, Check, X, Shield, Lock, Key, Download, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { hasEncryptionKeys } from '@/services/encryptionService';
 import { migrateToEncrypted, getEncryptionStatus } from '@/services/dataMigration';
 import { CryptoService } from '@/services/cryptoService';
 import { KeyManager } from '@/services/keyManager';
-import { authApi } from '@/lib/api';
+import { authApi, googleApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function SettingsPage() {
@@ -33,6 +33,18 @@ export default function SettingsPage() {
   const [keySyncSuccess, setKeySyncSuccess] = useState('');
   const [savingPassphrase, setSavingPassphrase] = useState(false);
 
+  // ── Delete All Data state ───────────────────────────────────────────────────
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deletingData, setDeletingData] = useState(false);
+
+  // ── Google Integration state ─────────────────────────────────────────────────
+  const [googleAuthStatus, setGoogleAuthStatus] = useState<{ isAuthenticated: boolean; isExpired: boolean | null } | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleCalendars, setGoogleCalendars] = useState<Array<{ id: string; name: string; primary: boolean }>>([]);
+  const [googlePreferredCalendar, setGooglePreferredCalendar] = useState<string | null>(null);
+  const [googleError, setGoogleError] = useState('');
+
   const crypto = new CryptoService();
   const keyManager = new KeyManager();
 
@@ -45,6 +57,80 @@ export default function SettingsPage() {
       getEncryptionStatus().then(setEncryptionStatus);
     }
   }, [keysAvailable]);
+
+  // Load Google auth status on mount
+  useEffect(() => {
+    loadGoogleStatus();
+  }, []);
+
+  // Load Google calendars when authenticated
+  useEffect(() => {
+    if (googleAuthStatus?.isAuthenticated && !googleAuthStatus.isExpired) {
+      loadGoogleCalendars();
+    }
+  }, [googleAuthStatus]);
+
+  const loadGoogleStatus = async () => {
+    try {
+      const status = await googleApi.getStatus();
+      setGoogleAuthStatus(status);
+      if (status.isAuthenticated) {
+        const preferred = await googleApi.getPreferredCalendar();
+        setGooglePreferredCalendar(preferred.calendarId);
+      }
+    } catch {
+      setGoogleAuthStatus({ isAuthenticated: false, isExpired: null });
+    }
+  };
+
+  const loadGoogleCalendars = async () => {
+    try {
+      const calendars = await googleApi.getCalendarList();
+      setGoogleCalendars(calendars);
+    } catch (err) {
+      console.error('Failed to load calendars:', err);
+    }
+  };
+
+  const handleGoogleConnect = async () => {
+    setGoogleLoading(true);
+    setGoogleError('');
+    try {
+      const { authUrl } = await googleApi.getAuthUrl();
+      window.location.href = authUrl;
+    } catch (err: any) {
+      setGoogleError(err.response?.data?.error || 'Failed to connect to Google');
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleRevoke = async () => {
+    setGoogleLoading(true);
+    setGoogleError('');
+    try {
+      await googleApi.revoke();
+      setGoogleAuthStatus({ isAuthenticated: false, isExpired: null });
+      setGoogleCalendars([]);
+      setGooglePreferredCalendar(null);
+    } catch (err: any) {
+      setGoogleError(err.response?.data?.error || 'Failed to revoke access');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleSetPreferredCalendar = async (calendarId: string) => {
+    setGoogleLoading(true);
+    setGoogleError('');
+    try {
+      await googleApi.setPreferredCalendar(calendarId);
+      setGooglePreferredCalendar(calendarId);
+    } catch (err: any) {
+      setGoogleError(err.response?.data?.error || 'Failed to set preferred calendar');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleMigrate = async () => {
     setMigrating(true);
@@ -110,8 +196,11 @@ export default function SettingsPage() {
       }
 
       const wrapped = await crypto.wrapPrivateKey(keys.privateKey, newPassphrase);
-      await authApi.updateWrappedKey(JSON.stringify(wrapped));
-      updateUser({ hasWrappedKey: true });
+      const keyFingerprint = await crypto.fingerprintFromPEM(keys.publicKey);
+
+      // Send both wrapped key AND fingerprint to server
+      await authApi.updateKeys(keys.publicKey, keyFingerprint, undefined, JSON.stringify(wrapped));
+      updateUser({ hasWrappedKey: true, keyFingerprint });
 
       setKeySyncSuccess('Recovery passphrase saved successfully.');
       setShowPassphraseForm(false);
@@ -122,6 +211,19 @@ export default function SettingsPage() {
       setKeySyncError(err.response?.data?.error || 'Failed to save passphrase.');
     } finally {
       setSavingPassphrase(false);
+    }
+  };
+
+  const handleDeleteAllData = async () => {
+    setDeleteError('');
+    setDeletingData(true);
+    try {
+      await authApi.deleteAllData();
+      // Reload the page to clear any cached data
+      window.location.reload();
+    } catch (err: any) {
+      setDeleteError(err.response?.data?.error || 'Failed to delete data. Please try again.');
+      setDeletingData(false);
     }
   };
 
@@ -161,28 +263,70 @@ export default function SettingsPage() {
           Connect your Google account to create Gmail drafts and calendar reminders for the 3B7 routine.
         </p>
 
-        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+        {googleError && (
+          <div className="bg-red-50 border border-red-200 rounded p-3 mb-4">
+            <p className="text-sm text-red-700">{googleError}</p>
+          </div>
+        )}
+
+        {/* Connection Status */}
+        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
-              <Mail className="w-5 h-5 text-muted-foreground" />
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              googleAuthStatus?.isAuthenticated ? 'bg-green-100' : 'bg-muted'
+            }`}>
+              {googleAuthStatus?.isAuthenticated ? (
+                <Check className="w-5 h-5 text-green-600" />
+              ) : (
+                <Mail className="w-5 h-5 text-muted-foreground" />
+              )}
             </div>
             <div>
-              <p className="font-medium">Coming Soon</p>
+              <p className="font-medium">
+                {googleAuthStatus?.isAuthenticated ? 'Connected to Google' : 'Not Connected'}
+              </p>
               <p className="text-sm text-muted-foreground">
-                Google Calendar and Gmail integration is not yet available on the current platform.
+                {googleAuthStatus?.isAuthenticated
+                  ? 'Gmail drafts and calendar integration enabled'
+                  : 'Connect to enable Gmail and Calendar features'}
               </p>
             </div>
           </div>
-          <span className="px-4 py-2 bg-muted text-muted-foreground rounded-lg cursor-not-allowed opacity-50">
-            Connect Google
-          </span>
+          {googleAuthStatus?.isAuthenticated ? (
+            <button
+              onClick={handleGoogleRevoke}
+              disabled={googleLoading}
+              className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 disabled:opacity-50"
+            >
+              {googleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Revoke Access'}
+            </button>
+          ) : (
+            <button
+              onClick={handleGoogleConnect}
+              disabled={googleLoading}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+            >
+              {googleLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  <Mail className="w-4 h-4" />
+                  Connect Google
+                </>
+              )}
+            </button>
+          )}
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-4">
+        {/* Feature Description */}
+        <div className="grid grid-cols-2 gap-4">
           <div className="p-4 border border-border rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <Mail className="w-4 h-4 text-primary" />
-              <h3 className="font-medium">Gmail</h3>
+              <h3 className="font-medium">Gmail Drafts</h3>
             </div>
             <p className="text-sm text-muted-foreground">
               Create draft emails directly from 6-Point Email templates
@@ -191,7 +335,7 @@ export default function SettingsPage() {
           <div className="p-4 border border-border rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <Calendar className="w-4 h-4 text-primary" />
-              <h3 className="font-medium">Calendar</h3>
+              <h3 className="font-medium">Calendar Reminders</h3>
             </div>
             <p className="text-sm text-muted-foreground">
               Automatically create 3B and 7B reminders when sending outreach
@@ -199,6 +343,37 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Calendar Selection (when connected) */}
+        {googleAuthStatus?.isAuthenticated && googleCalendars.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <h3 className="font-medium mb-2">Preferred Calendar</h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Select which calendar to use for creating 3B and 7B reminders
+            </p>
+            <div className="space-y-2">
+              {googleCalendars.map((cal) => (
+                <button
+                  key={cal.id}
+                  onClick={() => handleSetPreferredCalendar(cal.id)}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                    googlePreferredCalendar === cal.id || (!googlePreferredCalendar && cal.primary)
+                      ? 'bg-primary/10 border-primary'
+                      : 'bg-muted/30 border-border hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    <span className="text-sm font-medium">{cal.name}</span>
+                    {cal.primary && <span className="text-xs text-muted-foreground">(primary)</span>}
+                  </div>
+                  {(googlePreferredCalendar === cal.id || (!googlePreferredCalendar && cal.primary)) && (
+                    <Check className="w-4 h-4 text-primary" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Data Encryption */}
@@ -399,6 +574,78 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Delete All Data */}
+      <div className="bg-card rounded-lg border border-red-200 p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-700">
+          <Trash2 className="w-5 h-5" />
+          Danger Zone
+        </h2>
+        <p className="text-muted-foreground mb-4">
+          Permanently delete all your tracked data. This will remove all employers, contacts, outreach records,
+          informational interviews, and templates. This action cannot be undone.
+        </p>
+
+        {showDeleteConfirm ? (
+          <div className="border border-red-300 rounded-lg p-4 bg-red-50 space-y-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-red-800">Are you absolutely sure?</h3>
+                <p className="text-sm text-red-700 mt-1">
+                  This will permanently delete all your data including:
+                </p>
+                <ul className="text-sm text-red-700 mt-2 list-disc list-inside">
+                  <li>All employers and LAMP list entries</li>
+                  <li>All contacts</li>
+                  <li>All outreach records and follow-ups</li>
+                  <li>All informational interview records</li>
+                  <li>All email templates</li>
+                  <li>All settings</li>
+                </ul>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="bg-red-100 border border-red-300 rounded p-3">
+                <p className="text-sm text-red-800">{deleteError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeleteError(''); }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
+                disabled={deletingData}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAllData}
+                disabled={deletingData}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deletingData ? (
+                  <>Deleting...</>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Yes, Delete All My Data
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-4 py-2 border border-red-300 text-red-700 rounded-lg text-sm hover:bg-red-50 flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete All Data
+          </button>
+        )}
+      </div>
 
       {/* About */}
       <div className="bg-card rounded-lg border border-border p-6">

@@ -68,13 +68,14 @@ export class KeyManager {
 
   private openDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('2hjs-keys', 1);
+      const request = indexedDB.open('2hjs-keys', 2);
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
 
       request.onupgradeneeded = () => {
         const db = request.result;
+        // Create the 'keys' object store if it doesn't exist
         if (!db.objectStoreNames.contains('keys')) {
           db.createObjectStore('keys');
         }

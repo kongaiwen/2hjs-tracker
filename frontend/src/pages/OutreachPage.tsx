@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send, AlertCircle, Copy, ChevronRight, ChevronLeft, FileText, Mail, Calendar } from 'lucide-react';
-import { outreachApi, contactsApi, templatesApi, googleApi } from '@/lib/api';
+import { outreachApi, contactsApi, templatesApi, googleApi, employersApi } from '@/lib/api';
 import { cn, formatDate, getStatusLabel, getSegmentColor, countWords } from '@/lib/utils';
-import type { Outreach, ResponseType, Contact } from '@/types';
+import type { Outreach, ResponseType, Contact, Employer } from '@/types';
 
 export default function OutreachPage() {
   const queryClient = useQueryClient();
@@ -29,7 +29,70 @@ export default function OutreachPage() {
     queryFn: googleApi.getStatus,
   });
 
+  // Fetch employers and contacts for name resolution (server JOINs return '[encrypted]' after E2E encryption)
+  const { data: employers } = useQuery({
+    queryKey: ['employers'],
+    queryFn: employersApi.getAll,
+  });
+
+  const { data: contacts } = useQuery({
+    queryKey: ['contacts'],
+    queryFn: contactsApi.getAll,
+  });
+
   const isGoogleAuthenticated = googleStatus?.isAuthenticated ?? false;
+
+  // Patch outreach with employer and contact names from decrypted lists
+  const patchedOutreach = useMemo(() => {
+    if (!outreach || !employers || !contacts) return outreach;
+
+    const employerMap = new Map(employers.map((e: Employer) => [e.id, e]));
+    const contactMap = new Map(contacts.map((c: Contact) => [c.id, c]));
+
+    return outreach.map((o: Outreach) => {
+      const employer = employerMap.get(o.employerId);
+      const contact = contactMap.get(o.contactId);
+      return {
+        ...o,
+        employer: employer ? { id: employer.id, name: employer.name } : o.employer,
+        contact: contact ? {
+          id: contact.id,
+          name: contact.name,
+          segment: contact.segment,
+        } : o.contact,
+      };
+    });
+  }, [outreach, employers, contacts]);
+
+  // Patch reminders similarly
+  const patchedReminders = useMemo(() => {
+    if (!reminders || !employers || !contacts) return reminders;
+
+    const employerMap = new Map(employers.map((e: Employer) => [e.id, e]));
+    const contactMap = new Map(contacts.map((c: Contact) => [c.id, c]));
+
+    const patchArray = (items: Outreach[]) => items.map((o: Outreach) => {
+      const employer = employerMap.get(o.employerId);
+      const contact = contactMap.get(o.contactId);
+      return {
+        ...o,
+        employer: employer ? { id: employer.id, name: employer.name } : o.employer,
+        contact: contact ? {
+          id: contact.id,
+          name: contact.name,
+          segment: contact.segment,
+        } : o.contact,
+      };
+    });
+
+    return {
+      ...reminders,
+      threeBReminders: patchArray(reminders.threeBReminders || []),
+      sevenBReminders: patchArray(reminders.sevenBReminders || []),
+      overdue3B: patchArray(reminders.overdue3B || []),
+      overdue7B: patchArray(reminders.overdue7B || []),
+    };
+  }, [reminders, employers, contacts]);
 
   return (
     <div className="space-y-6">
@@ -71,20 +134,20 @@ export default function OutreachPage() {
       </div>
 
       {/* Today's Reminders */}
-      {reminders && reminders.summary.totalActionRequired > 0 && (
+      {patchedReminders && patchedReminders.summary.totalActionRequired > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <h3 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
             <AlertCircle className="w-5 h-5" />
-            Today's Actions ({reminders.summary.totalActionRequired})
+            Today's Actions ({patchedReminders.summary.totalActionRequired})
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            {reminders.threeBReminders.length > 0 && (
+            {patchedReminders.threeBReminders.length > 0 && (
               <div>
                 <p className="text-sm font-medium text-amber-700 mb-2">
-                  3B: Try new contact ({reminders.threeBReminders.length})
+                  3B: Try new contact ({patchedReminders.threeBReminders.length})
                 </p>
                 <ul className="space-y-1">
-                  {reminders.threeBReminders.map((o) => (
+                  {patchedReminders.threeBReminders.map((o) => (
                     <li key={o.id} className="text-sm">
                       {o.employer?.name} - {o.contact?.name}
                     </li>
@@ -92,13 +155,13 @@ export default function OutreachPage() {
                 </ul>
               </div>
             )}
-            {reminders.sevenBReminders.length > 0 && (
+            {patchedReminders.sevenBReminders.length > 0 && (
               <div>
                 <p className="text-sm font-medium text-amber-700 mb-2">
-                  7B: Follow up ({reminders.sevenBReminders.length})
+                  7B: Follow up ({patchedReminders.sevenBReminders.length})
                 </p>
                 <ul className="space-y-1">
-                  {reminders.sevenBReminders.map((o) => (
+                  {patchedReminders.sevenBReminders.map((o) => (
                     <li key={o.id} className="text-sm">
                       {o.employer?.name} - {o.contact?.name}
                     </li>
@@ -144,7 +207,7 @@ export default function OutreachPage() {
                     Loading outreach...
                   </td>
                 </tr>
-              ) : !outreach?.length ? (
+              ) : !patchedOutreach?.length ? (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-muted-foreground">
                     <Send className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -155,7 +218,7 @@ export default function OutreachPage() {
                   </td>
                 </tr>
               ) : (
-                outreach.map((o) => (
+                patchedOutreach.map((o) => (
                   <OutreachRow key={o.id} outreach={o} isGoogleAuthenticated={isGoogleAuthenticated} />
                 ))
               )}
@@ -478,6 +541,24 @@ function EmailComposer({
     queryFn: templatesApi.getAll,
   });
 
+  const { data: employers } = useQuery({
+    queryKey: ['employers'],
+    queryFn: employersApi.getAll,
+  });
+
+  // Patch contact employer names (server JOIN returns '[encrypted]' after E2E encryption)
+  const patchedContacts = useMemo(() => {
+    if (!allContacts || !employers) return allContacts;
+    const employerNameMap = new Map(employers.map(e => [e.id, e.name]));
+    return allContacts.map(c => {
+      const resolvedName = employerNameMap.get(c.employerId);
+      if (resolvedName && c.employer && c.employer.name !== resolvedName) {
+        return { ...c, employer: { ...c.employer, name: resolvedName } };
+      }
+      return c;
+    });
+  }, [allContacts, employers]);
+
   const { data: googleStatus } = useQuery({
     queryKey: ['google-status'],
     queryFn: googleApi.getStatus,
@@ -485,7 +566,7 @@ function EmailComposer({
 
   // Group contacts by employer for the dropdown
   const contactsByEmployer = useMemo(() => {
-    return allContacts?.reduce((acc, contact) => {
+    return patchedContacts?.reduce((acc, contact) => {
       const employerName = contact.employer?.name || 'Unknown';
       if (!acc[employerName]) {
         acc[employerName] = [];
@@ -493,10 +574,10 @@ function EmailComposer({
       acc[employerName].push(contact);
       return acc;
     }, {} as Record<string, Contact[]>);
-  }, [allContacts]);
+  }, [patchedContacts]);
 
   // Get selected contact and template
-  const selectedContact = allContacts?.find((c) => c.id === contactId);
+  const selectedContact = patchedContacts?.find((c) => c.id === contactId);
   const selectedTemplate = templates?.find((t) => t.id === templateId);
   const employerId = selectedContact?.employerId || '';
   const employerName = selectedContact?.employer?.name || '';
@@ -504,9 +585,11 @@ function EmailComposer({
   // Get template variables (excluding auto-filled ones)
   const templateVariables = useMemo(() => {
     if (!selectedTemplate) return [];
+    // Handle case where variables might be encrypted (string) instead of array
+    const vars = Array.isArray(selectedTemplate.variables) ? selectedTemplate.variables : [];
     // These will be auto-filled from the contact/employer
     const autoFilled = ['contactName', 'employerName', 'jobTitle'];
-    return selectedTemplate.variables.filter((v) => !autoFilled.includes(v));
+    return vars.filter((v) => !autoFilled.includes(v));
   }, [selectedTemplate]);
 
   const createMutation = useMutation({
@@ -663,7 +746,9 @@ function EmailComposer({
             {selectedTemplate && (
               <div className="mt-2 p-3 bg-muted rounded-lg text-sm">
                 <p className="font-medium mb-1">Preview:</p>
-                <p className="text-muted-foreground whitespace-pre-wrap">{selectedTemplate.body.substring(0, 150)}...</p>
+                <p className="text-muted-foreground whitespace-pre-wrap">
+                  {typeof selectedTemplate.body === 'string' ? selectedTemplate.body.substring(0, 150) : '(No preview available)'}...
+                </p>
               </div>
             )}
           </div>

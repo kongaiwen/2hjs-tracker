@@ -15,6 +15,7 @@ import templatesRoutes from './routes/templates';
 import informationalsRoutes from './routes/informationals';
 import settingsRoutes from './routes/settings';
 import bulkRoutes from './routes/bulk';
+import googleRoutes from './routes/google';
 
 const app = new Hono();
 
@@ -46,6 +47,7 @@ app.route('/api/templates', templatesRoutes);
 app.route('/api/informationals', informationalsRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/bulk', bulkRoutes);
+app.route('/api/google', googleRoutes);
 
 // IMPORTANT: Do NOT add a catch-all route here
 // Let Pages handle static assets (index.html, JS, CSS, etc.)

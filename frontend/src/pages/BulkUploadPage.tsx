@@ -1,51 +1,15 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Upload, Download, FileText } from 'lucide-react';
-import api, { employersApi, contactsApi, templatesApi } from '@/lib/api';
+import api from '@/lib/api';
 
 interface BulkData {
-  employers: Array<{
-    id?: string;
-    name: string;
-    advocacy: boolean;
-    motivation: number;
-    posting: number;
-    industry?: string;
-    location?: string;
-    website?: string;
-    notes?: string;
-    isNetworkOrg?: boolean;
-  }>;
-  contacts: Array<{
-    id?: string;
-    name: string;
-    employer: string; // Match by name, not ID
-    title?: string;
-    email?: string;
-    linkedInUrl?: string;
-    phone?: string;
-    notes?: string;
-    isFunctionallyRelevant?: boolean;
-    isAlumni?: boolean;
-    levelAboveTarget?: number;
-    contactMethod?: string;
-    priority?: number;
-  }>;
-  outreach: Array<{
-    id?: string;
-    contact: string; // Match by name
-    employer: string; // Match by name
-    subject: string;
-    body: string;
-    sentAt?: string;
-  }>;
-  templates: Array<{
-    id?: string;
-    name: string;
-    type: string;
-    subject: string;
-    body: string;
-  }>;
+  employers?: Array<any>;
+  contacts?: Array<any>;
+  outreach?: Array<any>;
+  informationals?: Array<any>;
+  emailTemplates?: Array<any>;
+  settings?: any;
 }
 
 export default function BulkUploadPage() {
@@ -55,104 +19,22 @@ export default function BulkUploadPage() {
 
   const uploadMutation = useMutation({
     mutationFn: async (data: BulkData) => {
-      // Get all current employers to build name->id map
-      const allEmployers = await employersApi.getAll();
-      const employerMap = new Map(allEmployers.map(e => [e.name, e.id]));
-
-      const results = {
-        created: { employers: 0, contacts: 0, outreach: 0, templates: 0 },
-        updated: { employers: 0, contacts: 0, outreach: 0, templates: 0 },
-        errors: [] as string[],
-      };
-
-      // Upload employers first (get ID mappings)
-      for (const employer of data.employers) {
-        try {
-          const existingId = employerMap.get(employer.name);
-
-          if (existingId) {
-            // Update existing
-            await employersApi.update(existingId, employer);
-            results.updated.employers++;
-          } else {
-            // Create new
-            const created = await employersApi.create(employer);
-            employerMap.set(employer.name, created.id);
-            results.created.employers++;
-          }
-        } catch (e) {
-          results.errors.push(`Employer "${employer.name}": ${e}`);
-        }
-      }
-
-      // Get all current contacts to build name+employer->id map
-      const allContacts = await contactsApi.getAll();
-      const contactMap = new Map(
-        allContacts.map(c => {
-          const employerName = c.employer?.name || '';
-          return [`${c.name}|${employerName}`, c.id];
-        })
-      );
-
-      // Upload contacts (use employer name mapping)
-      for (const contact of data.contacts) {
-        try {
-          const employerId = employerMap.get(contact.employer);
-          if (!employerId) {
-            results.errors.push(`Contact "${contact.name}": Employer "${contact.employer}" not found`);
-            continue;
-          }
-
-          const existingId = contactMap.get(`${contact.name}|${contact.employer}`);
-
-          const contactData = { ...contact, employerId };
-
-          // Remove employer from data as we use employerId
-          const { employer, ...contactPayload } = contactData as any;
-
-          if (existingId) {
-            await contactsApi.update(existingId, contactPayload);
-            results.updated.contacts++;
-          } else {
-            await contactsApi.create(contactPayload);
-            results.created.contacts++;
-          }
-        } catch (e) {
-          results.errors.push(`Contact "${contact.name}": ${e}`);
-        }
-      }
-
-      // Upload templates
-      for (const template of data.templates) {
-        try {
-          const templateData = {
-            ...template,
-            type: template.type as any, // Cast to any to bypass type check for import
-          };
-
-          if (template.id) {
-            await templatesApi.update(template.id, templateData);
-            results.updated.templates++;
-          } else {
-            await templatesApi.create(templateData);
-            results.created.templates++;
-          }
-        } catch (e) {
-          results.errors.push(`Template "${template.name}": ${e}`);
-        }
-      }
-
-      return results;
+      const response = await api.post('/api/bulk/import', data);
+      return response.data;
     },
     onSuccess: (results) => {
       queryClient.invalidateQueries({ queryKey: ['employers'] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['outreach'] });
       queryClient.invalidateQueries({ queryKey: ['templates'] });
+      queryClient.invalidateQueries({ queryKey: ['informationals'] });
 
       const message = `Upload complete!\n\n` +
         `Employers: ${results.created.employers} created, ${results.updated.employers} updated\n` +
         `Contacts: ${results.created.contacts} created, ${results.updated.contacts} updated\n` +
-        `Templates: ${results.created.templates} created, ${results.updated.templates} updated\n` +
+        `Outreach: ${results.created.outreach} created, ${results.updated.outreach} updated\n` +
+        `Informationals: ${results.created.informationals} created, ${results.updated.informationals} updated\n` +
+        `Email Templates: ${results.created.emailTemplates} created, ${results.updated.emailTemplates} updated\n` +
         (results.errors.length ? `\nErrors: ${results.errors.length}` : '');
 
       alert(message);
@@ -258,7 +140,8 @@ export default function BulkUploadPage() {
                 <li>📁 {jsonData.employers?.length || 0} employers</li>
                 <li>👥 {jsonData.contacts?.length || 0} contacts</li>
                 <li>📧 {jsonData.outreach?.length || 0} outreach records</li>
-                <li>📝 {jsonData.templates?.length || 0} templates</li>
+                <li>📅 {jsonData.informationals?.length || 0} informational interviews</li>
+                <li>📝 {jsonData.emailTemplates?.length || 0} email templates</li>
               </ul>
             </div>
           )}
@@ -287,6 +170,7 @@ export default function BulkUploadPage() {
       "advocacy": true,
       "motivation": 3,
       "posting": 2,
+      "status": "ACTIVE",
       "industry": "Technology",
       "location": "San Francisco, CA",
       "website": "https://acme.com",
@@ -302,6 +186,7 @@ export default function BulkUploadPage() {
       "email": "jane@acme.com",
       "linkedInUrl": "https://linkedin.com/in/jane",
       "phone": "+1-555-0123",
+      "segment": "UNKNOWN",
       "priority": 1,
       "isFunctionallyRelevant": true,
       "isAlumni": false,
@@ -310,12 +195,35 @@ export default function BulkUploadPage() {
       "notes": "Met at conference"
     }
   ],
-  "templates": [
+  "outreach": [
+    {
+      "contact": "Jane Doe",
+      "employer": "Acme Corp",
+      "subject": "Question about role",
+      "body": "Hi Jane, ...",
+      "sentAt": "2026-03-01T10:00:00Z",
+      "threeB_Date": "2026-03-04T10:00:00Z",
+      "sevenB_Date": "2026-03-10T10:00:00Z",
+      "status": "AWAITING_3B",
+      "calendarEventId": "event-id-123"
+    }
+  ],
+  "informationals": [
+    {
+      "contact": "Jane Doe",
+      "scheduledAt": "2026-03-15T14:00:00Z",
+      "duration": 30,
+      "method": "VIDEO",
+      "outcome": "REFERRAL_OFFERED"
+    }
+  ],
+  "emailTemplates": [
     {
       "name": "Initial Outreach",
       "type": "SIX_POINT_INITIAL",
       "subject": "Question about {{company}}",
-      "body": "Hi {{name}},..."
+      "body": "Hi {{name}},...",
+      "variables": ["name", "company"]
     }
   ]
 }`}

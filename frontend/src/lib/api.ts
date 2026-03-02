@@ -137,12 +137,17 @@ api.interceptors.response.use(async (response: AxiosResponse) => {
       // Special case: /outreach/today returns nested arrays
       for (const key of ['threeBReminders', 'sevenBReminders', 'overdueItems', 'upcomingItems']) {
         if (Array.isArray(data[key])) {
-          data[key] = await decryptRecords('outreach', data[key]);
+          const decrypted = await decryptRecords('outreach', data[key]);
+          // Mark which records were decrypted from encryptedData for migration to skip
+          data[key] = decrypted.map((r, i) => ({ ...r, _wasEncrypted: !!data[key][i].encryptedData }));
         }
       }
     } else if (Array.isArray(data)) {
-      // Direct array response
+      // Direct array response - track original encryption status before decrypting
+      const originalEncryptedStatus = data.map(r => !!r.encryptedData);
       response.data = await decryptRecords(entityType, data);
+      // Mark which records were decrypted from encryptedData for migration to skip
+      response.data = response.data.map((r: any, i: number) => ({ ...r, _wasEncrypted: originalEncryptedStatus[i] }));
     } else {
       // Check for wrapped responses
       const singularKeys: Record<EntityType, string> = {
@@ -166,9 +171,14 @@ api.interceptors.response.use(async (response: AxiosResponse) => {
       const singularKey = singularKeys[entityType];
 
       if (pluralKey && Array.isArray(data[pluralKey])) {
+        const originalEncryptedStatus = data[pluralKey].map((r: any) => !!r.encryptedData);
         data[pluralKey] = await decryptRecords(entityType, data[pluralKey]);
+        // Mark which records were decrypted from encryptedData for migration to skip
+        data[pluralKey] = data[pluralKey].map((r: any, i: number) => ({ ...r, _wasEncrypted: originalEncryptedStatus[i] }));
       } else if (singularKey && data[singularKey] && typeof data[singularKey] === 'object' && !Array.isArray(data[singularKey])) {
+        const wasEncrypted = !!data[singularKey].encryptedData;
         data[singularKey] = await decryptRecord(entityType, data[singularKey]);
+        data[singularKey]._wasEncrypted = wasEncrypted;
       }
     }
   } catch {
@@ -190,6 +200,7 @@ export const authApi = {
     api.put('/api/auth/keys', { wrappedPrivateKey }),
   getWrappedKey: () =>
     api.get<{ wrappedPrivateKey: string | null }>('/api/auth/keys/wrapped').then((r) => r.data),
+  deleteAllData: () => api.delete('/api/auth/data'),
 };
 
 // Employers

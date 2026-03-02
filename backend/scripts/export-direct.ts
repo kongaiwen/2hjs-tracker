@@ -72,28 +72,28 @@ async function exportData() {
   exportData.employers = employers ? JSON.parse(employers) : [];
   console.log(`   ✓ ${exportData.employers.length} employers`);
 
-  // Export Contacts
+  // Export Contacts with employer names for matching
   console.log('📦 Exporting Contacts...');
   const contacts = execSync(
-    `docker exec ${DB_CONTAINER} psql -U ${DB_USER} -d ${DB_NAME} -t -c "SELECT json_agg(row_to_json(t)) FROM (SELECT * FROM \\"Contact\\") t"`,
+    `docker exec ${DB_CONTAINER} psql -U ${DB_USER} -d ${DB_NAME} -t -c "SELECT json_agg(row_to_json(t)) FROM (SELECT c.*, e.name as \\"_employerName\\" FROM \\"Contact\\" c LEFT JOIN \\"Employer\\" e ON c.\\"employerId\\" = e.id) t"`,
     { encoding: 'utf-8' }
   ).trim();
   exportData.contacts = contacts ? JSON.parse(contacts) : [];
   console.log(`   ✓ ${exportData.contacts.length} contacts`);
 
-  // Export Outreach
+  // Export Outreach with employer and contact names for matching
   console.log('📦 Exporting Outreach...');
   const outreach = execSync(
-    `docker exec ${DB_CONTAINER} psql -U ${DB_USER} -d ${DB_NAME} -t -c "SELECT json_agg(row_to_json(t)) FROM (SELECT * FROM \\"Outreach\\") t"`,
+    `docker exec ${DB_CONTAINER} psql -U ${DB_USER} -d ${DB_NAME} -t -c "SELECT json_agg(row_to_json(t)) FROM (SELECT o.*, e.name as \\"_employerName\\", c.name as \\"_contactName\\" FROM \\"Outreach\\" o LEFT JOIN \\"Employer\\" e ON o.\\"employerId\\" = e.id LEFT JOIN \\"Contact\\" c ON o.\\"contactId\\" = c.id) t"`,
     { encoding: 'utf-8' }
   ).trim();
   exportData.outreach = outreach ? JSON.parse(outreach) : [];
   console.log(`   ✓ ${exportData.outreach.length} outreach records`);
 
-  // Export Informationals
+  // Export Informationals with contact and employer names for matching
   console.log('📦 Exporting Informationals...');
   const informationals = execSync(
-    `docker exec ${DB_CONTAINER} psql -U ${DB_USER} -d ${DB_NAME} -t -c "SELECT json_agg(row_to_json(t)) FROM (SELECT * FROM \\"Informational\\") t"`,
+    `docker exec ${DB_CONTAINER} psql -U ${DB_USER} -d ${DB_NAME} -t -c "SELECT json_agg(row_to_json(t)) FROM (SELECT i.*, c.name as \\"_contactName\\", e.name as \\"_employerName\\" FROM \\"Informational\\" i LEFT JOIN \\"Contact\\" c ON i.\\"contactId\\" = c.id LEFT JOIN \\"Employer\\" e ON c.\\"employerId\\" = e.id) t"`,
     { encoding: 'utf-8' }
   ).trim();
   exportData.informationals = informationals ? JSON.parse(informationals) : [];

@@ -6,27 +6,109 @@ import { Hono } from 'hono';
 
 const app = new Hono();
 
+// Helper to add business days (skipping weekends: Saturday=6, Sunday=0)
+function addBusinessDays(dateStr: string, days: number): string {
+  const date = new Date(dateStr);
+  let result = new Date(date);
+  let addedDays = 0;
+
+  while (addedDays < days) {
+    result.setDate(result.getDate() + 1);
+    const dayOfWeek = result.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Skip Sunday (0) and Saturday (6)
+      addedDays++;
+    }
+  }
+
+  return result.toISOString().split('T')[0];
+}
+
+// Helper to get effective start date for 3B/7B counting
+// If sent at noon or later, counting starts from next business day
+function getEffectiveStartDate(sentDate: string): string {
+  const date = new Date(sentDate);
+  const hour = date.getUTCHours();
+
+  // Convert to Eastern Time (approximate) for noon cutoff
+  // UTC-5 in standard time, UTC-4 in daylight time
+  const easternHour = hour - 4; // Rough approximation
+
+  const dateOnly = new Date(date);
+  dateOnly.setUTCHours(0, 0, 0, 0);
+  const dayOfWeek = dateOnly.getDay();
+
+  // If sent on a weekend or at/after noon, start counting from next business day
+  if (dayOfWeek === 0 || dayOfWeek === 6 || easternHour >= 12) {
+    let next = new Date(dateOnly);
+    next.setDate(next.getDate() + 1);
+    while (next.getDay() === 0 || next.getDay() === 6) {
+      next.setDate(next.getDate() + 1);
+    }
+    return next.toISOString().split('T')[0];
+  }
+
+  return dateOnly.toISOString().split('T')[0];
+}
+
+// Calculate 3B date (3 business days from sent date)
+function calculate3BDate(sentDate: string): string {
+  const effectiveStart = getEffectiveStartDate(sentDate);
+  return addBusinessDays(effectiveStart, 3);
+}
+
+// Calculate 7B date (7 business days from sent date)
+function calculate7BDate(sentDate: string): string {
+  const effectiveStart = getEffectiveStartDate(sentDate);
+  return addBusinessDays(effectiveStart, 7);
+}
+
+// Helper to fetch a single outreach (without JOINs - client resolves names)
+async function fetchOutreachById(DB: any, id: string, userId: string) {
+  const row = await DB.prepare(`
+    SELECT o.* FROM Outreach o
+    WHERE o.id = ? AND o.userId = ?
+  `).bind(id, userId).first();
+
+  if (!row) return null;
+
+  return {
+    ...row,
+    contact: row.contactId ? { id: row.contactId } : null,
+    employer: row.employerId ? { id: row.employerId } : null,
+  };
+}
+
 app.get('/', async (c) => {
   const userId = c.get('userId');
   const employerId = c.req.query('employerId');
   const contactId = c.req.query('contactId');
 
-  let query = 'SELECT * FROM Outreach WHERE userId = ?';
+  let query = 'SELECT o.* FROM Outreach o WHERE o.userId = ?';
   const params: any[] = [userId];
 
   if (employerId) {
-    query += ' AND employerId = ?';
+    query += ' AND o.employerId = ?';
     params.push(employerId);
   }
   if (contactId) {
-    query += ' AND contactId = ?';
+    query += ' AND o.contactId = ?';
     params.push(contactId);
   }
 
-  query += ' ORDER BY sentAt DESC';
+  query += ' ORDER BY o.sentAt DESC';
 
   const outreach = await c.env.DB.prepare(query).bind(...params).all();
-  return c.json({ outreach: outreach.results });
+
+  // Return outreach with IDs - client will resolve names from decrypted contacts/employers
+  const results = outreach.results.map((row: any) => ({
+    ...row,
+    // Include minimal nested objects for type compatibility, but with IDs only
+    // Names will be resolved client-side from decrypted contacts/employers lists
+    contact: row.contactId ? { id: row.contactId } : null,
+    employer: row.employerId ? { id: row.employerId } : null,
+  }));
+
+  return c.json({ outreach: results });
 });
 
 // Get today's reminders (3B/7B routine)
@@ -36,53 +118,37 @@ app.get('/today', async (c) => {
 
   // 3B reminders: outreach where threeB_Date <= today and status is AWAITING_3B
   const threeB = await c.env.DB.prepare(`
-    SELECT o.*, c.name as _contactName, c.segment as _contactSegment,
-           e.name as _employerName
-    FROM Outreach o
-    LEFT JOIN Contact c ON o.contactId = c.id
-    LEFT JOIN Employer e ON o.employerId = e.id
+    SELECT o.* FROM Outreach o
     WHERE o.userId = ? AND o.threeB_Date <= ? AND o.status = 'AWAITING_3B'
     ORDER BY o.threeB_Date ASC
   `).bind(userId, today).all();
 
   // 7B reminders: outreach where sevenB_Date <= today and status is MOVED_ON or AWAITING_7B
   const sevenB = await c.env.DB.prepare(`
-    SELECT o.*, c.name as _contactName, c.segment as _contactSegment,
-           e.name as _employerName
-    FROM Outreach o
-    LEFT JOIN Contact c ON o.contactId = c.id
-    LEFT JOIN Employer e ON o.employerId = e.id
+    SELECT o.* FROM Outreach o
     WHERE o.userId = ? AND o.sevenB_Date <= ? AND o.status IN ('MOVED_ON', 'AWAITING_7B')
     ORDER BY o.sevenB_Date ASC
   `).bind(userId, today).all();
 
   // Overdue 3B: threeB_Date < today
   const overdue3B = await c.env.DB.prepare(`
-    SELECT o.*, c.name as _contactName, c.segment as _contactSegment,
-           e.name as _employerName
-    FROM Outreach o
-    LEFT JOIN Contact c ON o.contactId = c.id
-    LEFT JOIN Employer e ON o.employerId = e.id
+    SELECT o.* FROM Outreach o
     WHERE o.userId = ? AND o.threeB_Date < ? AND o.status = 'AWAITING_3B'
     ORDER BY o.threeB_Date ASC
   `).bind(userId, today).all();
 
   // Overdue 7B: sevenB_Date < today
   const overdue7B = await c.env.DB.prepare(`
-    SELECT o.*, c.name as _contactName, c.segment as _contactSegment,
-           e.name as _employerName
-    FROM Outreach o
-    LEFT JOIN Contact c ON o.contactId = c.id
-    LEFT JOIN Employer e ON o.employerId = e.id
+    SELECT o.* FROM Outreach o
     WHERE o.userId = ? AND o.sevenB_Date < ? AND o.status IN ('MOVED_ON', 'AWAITING_7B')
     ORDER BY o.sevenB_Date ASC
   `).bind(userId, today).all();
 
   const mapRow = (row: any) => ({
     ...row,
-    contact: row._contactName ? { id: row.contactId, name: row._contactName, segment: row._contactSegment } : null,
-    employer: row._employerName ? { id: row.employerId, name: row._employerName } : null,
-    _contactName: undefined, _contactSegment: undefined, _employerName: undefined,
+    // Client will resolve names from decrypted contacts/employers lists
+    contact: row.contactId ? { id: row.contactId } : null,
+    employer: row.employerId ? { id: row.employerId } : null,
   });
 
   return c.json({
@@ -135,18 +201,28 @@ app.post('/', async (c) => {
 
   const id = crypto.randomUUID();
 
+  // Calculate word count from body
+  const wordCount = (body.body || '').split(/\s+/).filter((w: string) => w.length > 0).length;
+
+  // Use provided sentAt or current time
+  const sentAt = body.sentAt || new Date().toISOString();
+
+  // Calculate 3B and 7B dates using business day logic
+  const threeB_Date = calculate3BDate(sentAt);
+  const sevenB_Date = calculate7BDate(sentAt);
+
   await c.env.DB.prepare(`
     INSERT INTO Outreach (id, userId, employerId, contactId, subject, body, wordCount,
                           sentAt, threeB_Date, sevenB_Date, status, encryptedData, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `).bind(
     id, userId, body.employerId, body.contactId, body.subject, body.body,
-    body.wordCount, body.sentAt, body.threeB_Date, body.sevenB_Date,
-    body.status || 'SENT',
+    wordCount, sentAt, threeB_Date, sevenB_Date,
+    body.status || 'AWAITING_3B',
     body.encryptedData || null
   ).run();
 
-  const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
+  const outreach = await fetchOutreachById(c.env.DB, id, userId);
   return c.json({ outreach }, 201);
 });
 
@@ -155,9 +231,7 @@ app.get('/:id', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
 
-  const outreach = await c.env.DB.prepare(
-    'SELECT * FROM Outreach WHERE id = ? AND userId = ?'
-  ).bind(id, userId).first();
+  const outreach = await fetchOutreachById(c.env.DB, id, userId);
 
   if (!outreach) {
     return c.json({ error: 'Outreach not found' }, 404);
@@ -197,7 +271,7 @@ app.post('/:id/response', async (c) => {
     `).bind(segment, existing.contactId).run();
   }
 
-  const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
+  const outreach = await fetchOutreachById(c.env.DB, id, userId);
   return c.json({ outreach, segment, isBooster });
 });
 
@@ -221,7 +295,7 @@ app.post('/:id/follow-up', async (c) => {
     WHERE id = ? AND userId = ?
   `).bind(body.body || null, id, userId).run();
 
-  const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
+  const outreach = await fetchOutreachById(c.env.DB, id, userId);
   return c.json({ outreach });
 });
 
@@ -243,7 +317,7 @@ app.post('/:id/move-on', async (c) => {
     WHERE id = ? AND userId = ?
   `).bind(id, userId).run();
 
-  const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
+  const outreach = await fetchOutreachById(c.env.DB, id, userId);
   return c.json({ outreach });
 });
 
@@ -265,7 +339,48 @@ app.post('/:id/no-response', async (c) => {
     WHERE id = ? AND userId = ?
   `).bind(id, userId).run();
 
-  const outreach = await c.env.DB.prepare('SELECT * FROM Outreach WHERE id = ?').bind(id).first();
+  const outreach = await fetchOutreachById(c.env.DB, id, userId);
+  return c.json({ outreach });
+});
+
+// Update outreach (for encryption migration)
+app.put('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+
+  // Verify outreach belongs to user
+  const existing = await c.env.DB.prepare(
+    'SELECT * FROM Outreach WHERE id = ? AND userId = ?'
+  ).bind(id, userId).first() as any;
+
+  if (!existing) {
+    return c.json({ error: 'Outreach not found' }, 404);
+  }
+
+  // Build dynamic UPDATE query - only update provided fields
+  const updates: string[] = [];
+  const values: (string | number | null)[] = [];
+
+  // Allowable fields to update (for encryption migration)
+  if (body.subject !== undefined) { updates.push('subject = ?'); values.push(body.subject); }
+  if (body.body !== undefined) { updates.push('body = ?'); values.push(body.body); }
+  if (body.followUpBody !== undefined) { updates.push('followUpBody = ?'); values.push(body.followUpBody); }
+  if (body.notes !== undefined) { updates.push('notes = ?'); values.push(body.notes); }
+  if (body.encryptedData !== undefined) { updates.push('encryptedData = ?'); values.push(body.encryptedData); }
+  if (body.status !== undefined) { updates.push('status = ?'); values.push(body.status); }
+
+  // Add updatedAt timestamp
+  updates.push('updatedAt = datetime("now")');
+  values.push(id, userId);
+
+  if (updates.length > 1) { // More than just updatedAt
+    await c.env.DB.prepare(
+      `UPDATE Outreach SET ${updates.join(', ')} WHERE id = ? AND userId = ?`
+    ).bind(...values).run();
+  }
+
+  const outreach = await fetchOutreachById(c.env.DB, id, userId);
   return c.json({ outreach });
 });
 

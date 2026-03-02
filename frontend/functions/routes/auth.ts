@@ -105,4 +105,32 @@ app.get('/keys/wrapped', async (c) => {
   return c.json({ wrappedPrivateKey: user.wrappedPrivateKey || null });
 });
 
+// Delete all user data (employers, contacts, outreach, informationals, templates, settings)
+// Keeps the user account but clears all their tracked data
+app.delete('/data', async (c) => {
+  const userId = c.get('userId');
+  const DB = c.env.DB;
+
+  // Delete in order of dependencies (child records first)
+  await DB.prepare('DELETE FROM EmailTemplate WHERE userId = ?').bind(userId).run();
+  await DB.prepare('DELETE FROM Informational WHERE userId = ?').bind(userId).run();
+  await DB.prepare('DELETE FROM Outreach WHERE userId = ?').bind(userId).run();
+  await DB.prepare('DELETE FROM Contact WHERE userId = ?').bind(userId).run();
+  await DB.prepare('DELETE FROM Employer WHERE userId = ?').bind(userId).run();
+  await DB.prepare('DELETE FROM Settings WHERE userId = ?').bind(userId).run();
+  await DB.prepare('DELETE FROM UsageMetrics WHERE userId = ?').bind(userId).run();
+
+  // Clear encryptedData blob from user record
+  await DB.prepare(`
+    UPDATE User
+    SET encryptedData = NULL,
+        dataVersion = 0,
+        storageUsed = 0,
+        updatedAt = datetime('now')
+    WHERE id = ?
+  `).bind(userId).run();
+
+  return c.json({ success: true });
+});
+
 export default app;
