@@ -42,18 +42,21 @@ app.get('/callback', async (c) => {
   const code = c.req.query('code');
   const error = c.req.query('error');
 
+  // Get the frontend URL for redirect
+  const frontendUrl = c.env.FRONTEND_URL || `https://${c.req.header('host')?.replace(/\/api\/google\/callback.*/, '')}` || 'https://2hjs-tracker.pages.dev';
+
   if (error) {
-    // User denied authorization
-    return c.json({ error: 'Authorization denied', redirectUrl: '/settings?google=error' }, 400);
+    // User denied authorization - redirect to settings with error
+    return c.redirect(`${frontendUrl}/settings?google=error`);
   }
 
   if (!code) {
-    return c.json({ error: 'Missing authorization code' }, 400);
+    return c.redirect(`${frontendUrl}/settings?google=error`);
   }
 
   try {
     const userId = c.get('userId');
-    const redirectUri = c.env.GOOGLE_REDIRECT_URI || `https://${c.req.header('host')}/api/google/callback`;
+    const redirectUri = c.env.GOOGLE_REDIRECT_URI || `${frontendUrl}/api/google/callback`;
 
     // Exchange authorization code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -73,7 +76,7 @@ app.get('/callback', async (c) => {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       console.error('Token exchange failed:', errorText);
-      return c.json({ error: 'Failed to exchange authorization code', redirectUrl: '/settings?google=error' }, 500);
+      return c.redirect(`${frontendUrl}/settings?google=error`);
     }
 
     const tokens = await tokenResponse.json();
@@ -90,14 +93,11 @@ app.get('/callback', async (c) => {
       WHERE userId = ?
     `).bind(tokens.access_token, tokens.refresh_token || null, expiryDate, userId).run();
 
-    // Return JSON with redirect URL (frontend handles the redirect)
-    return c.json({
-      success: true,
-      redirectUrl: '/settings?google=success',
-    });
+    // Redirect to settings page with success flag
+    return c.redirect(`${frontendUrl}/settings?google=success`);
   } catch (error) {
     console.error('OAuth callback error:', error);
-    return c.json({ error: 'OAuth callback failed', redirectUrl: '/settings?google=error' }, 500);
+    return c.redirect(`${frontendUrl}/settings?google=error`);
   }
 });
 
