@@ -362,13 +362,19 @@ app.put('/:id', async (c) => {
   const updates: string[] = [];
   const values: (string | number | null)[] = [];
 
-  // Allowable fields to update (for encryption migration)
+  // Allowable fields to update
   if (body.subject !== undefined) { updates.push('subject = ?'); values.push(body.subject); }
   if (body.body !== undefined) { updates.push('body = ?'); values.push(body.body); }
   if (body.followUpBody !== undefined) { updates.push('followUpBody = ?'); values.push(body.followUpBody); }
   if (body.notes !== undefined) { updates.push('notes = ?'); values.push(body.notes); }
   if (body.encryptedData !== undefined) { updates.push('encryptedData = ?'); values.push(body.encryptedData); }
   if (body.status !== undefined) { updates.push('status = ?'); values.push(body.status); }
+  if (body.sentAt !== undefined) {
+    updates.push('sentAt = ?'); values.push(body.sentAt);
+    // Recalculate 3B and 7B dates from new sent date
+    updates.push('threeB_Date = ?'); values.push(calculate3BDate(body.sentAt));
+    updates.push('sevenB_Date = ?'); values.push(calculate7BDate(body.sentAt));
+  }
 
   // Add updatedAt timestamp
   updates.push('updatedAt = datetime("now")');

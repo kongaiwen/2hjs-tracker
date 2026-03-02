@@ -79,14 +79,16 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     const encrypted = await encryptRecord(entityType, config.data);
 
     // Set placeholder values for NOT NULL fields so server validation passes
+    // Only touch sensitive fields that were originally in the request data
     const placeholders = NOT_NULL_PLACEHOLDERS[entityType];
     if (placeholders && encrypted.encryptedData) {
       const sensitiveFields = getSensitiveFields(entityType);
       for (const field of sensitiveFields) {
+        if (!(field in config.data)) continue; // Don't add fields that weren't in the original request
         if (field in placeholders) {
           encrypted[field] = placeholders[field];
         } else {
-          // Null out other sensitive fields
+          // Null out other sensitive fields that were in the original request
           encrypted[field] = null;
         }
       }
