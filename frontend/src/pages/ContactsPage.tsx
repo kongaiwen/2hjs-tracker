@@ -205,7 +205,7 @@ export default function ContactsPage() {
         const o = (c.outreach as LatestOutreach[] | undefined)?.[0];
         return o && COMPLETED_STATUSES.includes(o.status as OutreachStatus);
       }).length,
-      movedOn: all.filter(c => companiesWithMovedOn.has(c.employerId)).length,
+      movedOn: all.filter(c => companiesWithMovedOn.has(c.employerId) && (!c._count?.outreach || c._count.outreach === 0)).length,
       boosters: all.filter(c => c.segment === 'BOOSTER').length,
     };
   }, [allContacts, companiesWithMovedOn]);
@@ -229,8 +229,8 @@ export default function ContactsPage() {
       });
     } else if (view === 'movedOn') {
       // Contacts at companies where someone has hit MOVED_ON status
-      // Show all contacts at these companies (including those already contacted)
-      result = result.filter(c => companiesWithMovedOn.has(c.employerId));
+      // Show ONLY contacts who haven't been contacted yet (the "next" contacts to try)
+      result = result.filter(c => companiesWithMovedOn.has(c.employerId) && (!c._count?.outreach || c._count.outreach === 0));
     }
 
     // org type filter

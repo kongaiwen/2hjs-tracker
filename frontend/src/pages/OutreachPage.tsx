@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send, AlertCircle, Copy, ChevronRight, ChevronLeft, FileText, Mail, Calendar, Edit2 } from 'lucide-react';
 import { outreachApi, contactsApi, templatesApi, googleApi, employersApi } from '@/lib/api';
 import { cn, formatDate, getStatusLabel, getSegmentColor, countWords } from '@/lib/utils';
-import type { Outreach, ResponseType, Contact, Employer } from '@/types';
+import type { Outreach, ResponseType, Contact, Employer, OutreachStatus } from '@/types';
 
 export default function OutreachPage() {
   const queryClient = useQueryClient();
@@ -451,9 +451,10 @@ function EditOutreachForm({ outreach, onCancel }: { outreach: Outreach; onCancel
   const [body, setBody] = useState(outreach.body || '');
   const [sentAt, setSentAt] = useState(outreach.sentAt?.split('T')[0] || '');
   const [notes, setNotes] = useState(outreach.notes || '');
+  const [status, setStatus] = useState<OutreachStatus>(outreach.status);
 
   const updateMutation = useMutation({
-    mutationFn: (data: { subject?: string; body?: string; sentAt?: string; notes?: string }) =>
+    mutationFn: (data: { subject?: string; body?: string; sentAt?: string; notes?: string; status?: OutreachStatus }) =>
       outreachApi.update(outreach.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['outreach'] });
@@ -470,6 +471,7 @@ function EditOutreachForm({ outreach, onCancel }: { outreach: Outreach; onCancel
     if (body !== outreach.body) data.body = body;
     if (sentAt && sentAt !== outreach.sentAt?.split('T')[0]) data.sentAt = new Date(sentAt).toISOString();
     if (notes !== outreach.notes) data.notes = notes;
+    if (status !== outreach.status) data.status = status;
 
     if (Object.keys(data).length === 0) {
       onCancel();
@@ -499,6 +501,26 @@ function EditOutreachForm({ outreach, onCancel }: { outreach: Outreach; onCancel
           onChange={(e) => setSubject(e.target.value)}
           className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Status</label>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as OutreachStatus)}
+          className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm"
+        >
+          <option value="DRAFT">Draft</option>
+          <option value="SENT">Sent</option>
+          <option value="AWAITING_3B">Awaiting 3B</option>
+          <option value="MOVED_ON">Moved On</option>
+          <option value="AWAITING_7B">Awaiting 7B</option>
+          <option value="FOLLOWED_UP">Followed Up</option>
+          <option value="RESPONDED">Responded</option>
+          <option value="SCHEDULED">Scheduled</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="NO_RESPONSE">No Response</option>
+        </select>
       </div>
 
       <div>
