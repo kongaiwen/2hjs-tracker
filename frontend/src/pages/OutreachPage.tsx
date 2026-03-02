@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Send, AlertCircle, Copy, ChevronRight, ChevronLeft, FileText, Mail, Calendar } from 'lucide-react';
+import { Send, AlertCircle, Copy, ChevronRight, ChevronLeft, FileText, Mail, Calendar, Edit2 } from 'lucide-react';
 import { outreachApi, contactsApi, templatesApi, googleApi, employersApi } from '@/lib/api';
 import { cn, formatDate, getStatusLabel, getSegmentColor, countWords } from '@/lib/utils';
 import type { Outreach, ResponseType, Contact, Employer } from '@/types';
@@ -234,6 +234,7 @@ function OutreachRow({ outreach, isGoogleAuthenticated }: { outreach: Outreach; 
   const queryClient = useQueryClient();
   const [showResponseForm, setShowResponseForm] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
 
   const recordResponseMutation = useMutation({
     mutationFn: ({ responseType, notes }: { responseType: ResponseType; notes?: string }) =>
@@ -319,6 +320,13 @@ function OutreachRow({ outreach, isGoogleAuthenticated }: { outreach: Outreach; 
         </td>
         <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => { setShowEditForm(true); setShowDetail(false); }}
+              className="p-1.5 rounded hover:bg-muted"
+              title="Edit outreach"
+            >
+              <Edit2 className="w-4 h-4 text-muted-foreground" />
+            </button>
             {isGoogleAuthenticated && !outreach.calendarEventId && (
               <button
                 onClick={() => createCalendarEventsMutation.mutate()}
@@ -364,6 +372,16 @@ function OutreachRow({ outreach, isGoogleAuthenticated }: { outreach: Outreach; 
               }
               onCancel={() => setShowResponseForm(false)}
               isLoading={recordResponseMutation.isPending}
+            />
+          </td>
+        </tr>
+      )}
+      {showEditForm && (
+        <tr className="bg-blue-50">
+          <td colSpan={8} className="p-4">
+            <EditOutreachForm
+              outreach={outreach}
+              onCancel={() => setShowEditForm(false)}
             />
           </td>
         </tr>
@@ -423,6 +441,127 @@ function ResponseForm({
       >
         Cancel
       </button>
+    </div>
+  );
+}
+
+function EditOutreachForm({ outreach, onCancel }: { outreach: Outreach; onCancel: () => void }) {
+  const queryClient = useQueryClient();
+  const [subject, setSubject] = useState(outreach.subject || '');
+  const [body, setBody] = useState(outreach.body || '');
+  const [sentAt, setSentAt] = useState(outreach.sentAt?.split('T')[0] || '');
+  const [notes, setNotes] = useState(outreach.notes || '');
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { subject?: string; body?: string; sentAt?: string; notes?: string }) =>
+      outreachApi.update(outreach.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['outreach'] });
+      onCancel();
+    },
+  });
+
+  const wordCount = countWords(body);
+  const isWordCountOk = wordCount <= 75;
+
+  const handleSubmit = () => {
+    const data: any = {};
+    if (subject !== outreach.subject) data.subject = subject;
+    if (body !== outreach.body) data.body = body;
+    if (sentAt && sentAt !== outreach.sentAt?.split('T')[0]) data.sentAt = new Date(sentAt).toISOString();
+    if (notes !== outreach.notes) data.notes = notes;
+
+    if (Object.keys(data).length === 0) {
+      onCancel();
+      return;
+    }
+
+    updateMutation.mutate(data);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="font-semibold text-sm">Edit Outreach</h4>
+        <button
+          onClick={onCancel}
+          className="text-muted-foreground hover:text-foreground text-lg leading-none"
+        >
+          &times;
+        </button>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Subject</label>
+        <input
+          type="text"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm"
+        />
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm font-medium">Body</label>
+          <span
+            className={cn(
+              'text-sm font-medium',
+              isWordCountOk ? 'text-green-600' : 'text-red-600'
+            )}
+          >
+            {wordCount} / 75 words
+          </span>
+        </div>
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={6}
+          className="w-full px-3 py-2 border border-border rounded-lg bg-background font-mono text-sm"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Sent Date</label>
+        <input
+          type="date"
+          value={sentAt}
+          onChange={(e) => setSentAt(e.target.value)}
+          max={new Date().toISOString().split('T')[0]}
+          className="px-3 py-2 border border-border rounded-lg bg-background text-sm"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Changing the sent date will recalculate 3B and 7B reminder dates
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Notes</label>
+        <input
+          type="text"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Optional notes"
+          className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm"
+        />
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={onCancel}
+          disabled={updateMutation.isPending}
+          className="px-4 py-2 border border-border rounded-lg hover:bg-muted"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={updateMutation.isPending}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -528,6 +667,7 @@ function EmailComposer({
   const [templateId, setTemplateId] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [sentAt, setSentAt] = useState('');
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
 
@@ -676,7 +816,11 @@ function EmailComposer({
   // Just record the outreach without sending
   const handleRecordOutreach = () => {
     if (!employerId || !contactId || !subject || !body) return;
-    createMutation.mutate({ employerId, contactId, subject, body });
+    const data: any = { employerId, contactId, subject, body };
+    if (sentAt) {
+      data.sentAt = sentAt;
+    }
+    createMutation.mutate(data);
   };
 
   return (
@@ -782,6 +926,31 @@ function EmailComposer({
             <p className="text-sm">
               <span className="font-medium">Template:</span> {selectedTemplate?.name}
             </p>
+          </div>
+
+          {/* Retroactive date picker */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={!!sentAt}
+                onChange={(e) => setSentAt(e.target.checked ? new Date().toISOString().split('T')[0] : '')}
+                className="rounded"
+              />
+              <span className="font-medium">Retroactive outreach?</span>
+            </label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Check if this email was sent on a previous date (3B and 7B dates will be calculated from the sent date)
+            </p>
+            {sentAt && (
+              <input
+                type="date"
+                value={sentAt}
+                onChange={(e) => setSentAt(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="mt-2 px-3 py-2 border border-border rounded-lg bg-background text-sm"
+              />
+            )}
           </div>
 
           {/* Auto-filled variables (read-only) */}

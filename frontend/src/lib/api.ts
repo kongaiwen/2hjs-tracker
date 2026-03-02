@@ -248,6 +248,8 @@ export const outreachApi = {
   getStats: () => api.get<OutreachStats>('/api/outreach/stats/summary').then((r) => r.data),
   create: (data: CreateOutreachInput) =>
     api.post<{ outreach: Outreach }>('/api/outreach', data).then((r) => r.data.outreach),
+  update: (id: string, data: Partial<CreateOutreachInput>) =>
+    api.put<{ outreach: Outreach }>(`/api/outreach/${id}`, data).then((r) => r.data.outreach),
   recordResponse: (
     id: string,
     data: { responseAt: string; responseType: ResponseType; notes?: string }

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { informationalsApi, googleApi, contactsApi, outreachApi } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
+import { usePatchedOutreach, usePatchedInformationals } from '@/hooks/useDecryptedData';
 import type { Informational, MeetingMethod, TimeSlot, Outreach } from '@/types';
 
 // Calendar helper functions
@@ -95,6 +96,9 @@ export default function CalendarPage() {
     queryFn: () => informationalsApi.getAll({ from: monthStart, to: monthEnd }),
   });
 
+  // Use patched data with decrypted names
+  const { patchedInformationals } = usePatchedInformationals(informationals);
+
   const { data: digest } = useQuery({
     queryKey: ['informationals', 'digest'],
     queryFn: informationalsApi.getDigest,
@@ -105,15 +109,19 @@ export default function CalendarPage() {
     queryFn: googleApi.getStatus,
   });
 
+  // Fetch outreach for 3B/7B reminders
   const { data: outreachData } = useQuery({
     queryKey: ['outreach'],
     queryFn: outreachApi.getAll,
   });
 
+  // Use patched data with decrypted names for outreach
+  const { patchedOutreach } = usePatchedOutreach(outreachData);
+
   // Group informationals by date
   const informalsByDate = useMemo(() => {
     const map = new Map<string, Informational[]>();
-    informationals?.forEach((inf) => {
+    patchedInformationals?.forEach((inf) => {
       const dateKey = new Date(inf.scheduledAt).toDateString();
       if (!map.has(dateKey)) {
         map.set(dateKey, []);
@@ -121,12 +129,12 @@ export default function CalendarPage() {
       map.get(dateKey)!.push(inf);
     });
     return map;
-  }, [informationals]);
+  }, [patchedInformationals]);
 
   // Group 3B/7B reminders by date
   const remindersByDate = useMemo(() => {
     const map = new Map<string, { threeB: Outreach[]; sevenB: Outreach[] }>();
-    (outreachData || []).forEach((o) => {
+    (patchedOutreach || []).forEach((o) => {
       if (o.status === 'AWAITING_3B' && o.threeB_Date) {
         const dateKey = new Date(o.threeB_Date).toDateString();
         if (!map.has(dateKey)) map.set(dateKey, { threeB: [], sevenB: [] });
@@ -139,7 +147,7 @@ export default function CalendarPage() {
       }
     });
     return map;
-  }, [outreachData]);
+  }, [patchedOutreach]);
 
   const navigateMonth = (delta: number) => {
     setCurrentDate(new Date(year, month + delta, 1));

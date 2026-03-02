@@ -55,6 +55,12 @@ export const authMiddleware: MiddlewareHandler<{
     isAdmin: boolean;
   };
 }> = async (c, next) => {
+  // Skip auth for OAuth callback (called by Google, not by user)
+  if (c.req.path === '/api/google/callback') {
+    await next();
+    return;
+  }
+
   // Try CF_Authorization JWT cookie first, then fall back to header
   let email = getEmailFromJwt(c.req.header('Cookie'))
     || c.req.header('CF-Access-User-Email')

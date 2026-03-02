@@ -20,7 +20,11 @@ const SCOPES = [
  * GET /api/google/auth
  */
 app.get('/auth', async (c) => {
+  const userId = c.get('userId');
   const redirectUri = c.env.GOOGLE_REDIRECT_URI || `https://${c.req.header('host')}/api/google/callback`;
+
+  // Create a state parameter that includes the userId for security and identification
+  const state = encodeURIComponent(JSON.stringify({ userId, timestamp: Date.now() }));
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
     client_id: c.env.GOOGLE_CLIENT_ID,
@@ -29,6 +33,7 @@ app.get('/auth', async (c) => {
     response_type: 'code',
     access_type: 'offline',
     prompt: 'consent',
+    state: state,
   })}`;
 
   return c.json({ authUrl });
@@ -36,11 +41,12 @@ app.get('/auth', async (c) => {
 
 /**
  * Handle OAuth callback
- * GET /api/google/callback?code={authorization_code}
+ * GET /api/google/callback?code={authorization_code}&state={encoded_user_id}
  */
 app.get('/callback', async (c) => {
   const code = c.req.query('code');
   const error = c.req.query('error');
+  const state = c.req.query('state');
 
   // Get the frontend URL for redirect
   const frontendUrl = c.env.FRONTEND_URL || `https://${c.req.header('host')?.replace(/\/api\/google\/callback.*/, '')}` || 'https://2hjs-tracker.pages.dev';
@@ -55,7 +61,21 @@ app.get('/callback', async (c) => {
   }
 
   try {
-    const userId = c.get('userId');
+    // Extract userId from state parameter
+    let userId: string;
+    try {
+      const stateData = JSON.parse(decodeURIComponent(state || ''));
+      userId = stateData.userId;
+    } catch {
+      // Fallback: try to get userId from auth middleware (for direct API calls during testing)
+      userId = c.get('userId');
+    }
+
+    if (!userId) {
+      console.error('OAuth callback: No userId found in state or auth middleware');
+      return c.redirect(`${frontendUrl}/settings?google=error`);
+    }
+
     const redirectUri = c.env.GOOGLE_REDIRECT_URI || `${frontendUrl}/api/google/callback`;
 
     // Exchange authorization code for tokens
@@ -95,8 +115,8 @@ app.get('/callback', async (c) => {
 
     // Redirect to settings page with success flag
     return c.redirect(`${frontendUrl}/settings?google=success`);
-  } catch (error) {
-    console.error('OAuth callback error:', error);
+  } catch (err) {
+    console.error('OAuth callback error:', err);
     return c.redirect(`${frontendUrl}/settings?google=error`);
   }
 });
